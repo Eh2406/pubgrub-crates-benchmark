@@ -35,6 +35,8 @@ mod names;
 mod read_index;
 use read_index::read_index;
 
+mod cargo_resolver;
+
 #[cfg(test)]
 use pubgrub::report::{DefaultStringReporter, Reporter};
 #[cfg(test)]
@@ -608,6 +610,11 @@ fn process_carte_version<'c>(
         dp.make_index_ron_file();
         dp.make_pubgrub_ron_file();
     }
+
+    dp.reset();
+    let cargo_out = cargo_resolver::resolve(&*crt, &*ver, dp);
+    let cargo_duration = dp.duration();
+
     OutPutSummery {
         name: crt,
         ver,
@@ -618,6 +625,8 @@ fn process_carte_version<'c>(
             .as_ref()
             .map(|r| r.iter().filter(|(v, _)| v.is_real()).count())
             .unwrap_or(0),
+        cargo_time: cargo_duration,
+        cargo_res: cargo_out.is_ok(),
     }
 }
 
@@ -629,6 +638,8 @@ struct OutPutSummery {
     succeeded: bool,
     pubgrub_deps: usize,
     deps: usize,
+    cargo_time: f32,
+    cargo_res: bool,
 }
 
 #[test]
