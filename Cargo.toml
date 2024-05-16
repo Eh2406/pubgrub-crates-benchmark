@@ -19,5 +19,6 @@ csv = "1.3.0"
 ahash = "0.8.11"
 
 [profile.release]
-lto = true
+lto = "fat"
 codegen-units = 1
+debug = "full"
