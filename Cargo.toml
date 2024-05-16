@@ -12,7 +12,6 @@ rayon = "1.9"
 semver = { version = "1" , features=[ "serde" ] }
 serde = { version = "1.0", features = ["derive"] }
 ron = "0.6"
-internment = { version =  "0.8.0", features = ["serde", "arc"] }
 semver-pubgrub = { git="https://github.com/pubgrub-rs/semver-pubgrub", features=["serde"] }
 pubgrub = { git="https://github.com/pubgrub-rs/pubgrub", branch="dev", features=["serde"] }
 itertools = "0.12.1"

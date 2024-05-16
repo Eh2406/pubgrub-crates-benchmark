@@ -1,43 +1,44 @@
-use internment::{ArcIntern, Intern};
+use std::sync::Arc;
+
 use semver_pubgrub::SemverCompatibility;
 
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub enum Names {
-    Bucket(ArcIntern<str>, SemverCompatibility, bool),
-    BucketFeatures(ArcIntern<str>, SemverCompatibility, ArcIntern<str>),
+    Bucket(Arc<str>, SemverCompatibility, bool),
+    BucketFeatures(Arc<str>, SemverCompatibility, Arc<str>),
     Wide(
-        ArcIntern<str>,
-        Intern<semver::VersionReq>,
-        ArcIntern<str>,
+        Arc<str>,
+        Box<semver::VersionReq>,
+        Arc<str>,
         SemverCompatibility,
     ),
     WideFeatures(
-        ArcIntern<str>,
-        Intern<semver::VersionReq>,
-        ArcIntern<str>,
+        Arc<str>,
+        Box<semver::VersionReq>,
+        Arc<str>,
         SemverCompatibility,
-        ArcIntern<str>,
+        Arc<str>,
     ),
-    Links(ArcIntern<str>),
+    Links(Arc<str>),
 }
 
 pub fn new_bucket(
-    crate_: impl Into<ArcIntern<str>>,
+    crate_: impl Into<Arc<str>>,
     compat: SemverCompatibility,
     all_features: bool,
-) -> Intern<Names> {
-    Intern::new(Names::Bucket(crate_.into(), compat, all_features))
+) -> Box<Names> {
+    Box::new(Names::Bucket(crate_.into(), compat, all_features))
 }
 pub fn new_wide(
-    crate_: impl Into<ArcIntern<str>>,
-    req: impl Into<Intern<semver::VersionReq>>,
-    from: impl Into<ArcIntern<str>>,
+    crate_: impl Into<Arc<str>>,
+    req: impl Into<Box<semver::VersionReq>>,
+    from: impl Into<Arc<str>>,
     compat: SemverCompatibility,
-) -> Intern<Names> {
-    Intern::new(Names::Wide(crate_.into(), req.into(), from.into(), compat))
+) -> Box<Names> {
+    Box::new(Names::Wide(crate_.into(), req.into(), from.into(), compat))
 }
-pub fn new_links(crate_: impl Into<ArcIntern<str>>) -> Intern<Names> {
-    Intern::new(Names::Links(crate_.into()))
+pub fn new_links(crate_: impl Into<Arc<str>>) -> Box<Names> {
+    Box::new(Names::Links(crate_.into()))
 }
 
 impl Ord for Names {
@@ -95,7 +96,7 @@ impl Names {
     pub fn is_real(&self) -> bool {
         matches!(self, &Self::Bucket(..))
     }
-    pub fn crate_(&self) -> ArcIntern<str> {
+    pub fn crate_(&self) -> Arc<str> {
         match self {
             Names::Bucket(c, _, _) => c.clone(),
             Names::BucketFeatures(c, _, _) => c.clone(),
@@ -104,9 +105,9 @@ impl Names {
             Names::Links(_) => panic!(),
         }
     }
-    pub fn with_features(&self, feat: impl Into<ArcIntern<str>>) -> Intern<Self> {
+    pub fn with_features(&self, feat: impl Into<Arc<str>>) -> Box<Self> {
         let feat = feat.into();
-        Intern::new(match self {
+        Box::new(match self {
             Names::Bucket(a, b, _) => Names::BucketFeatures(a.clone(), b.clone(), feat),
             Names::BucketFeatures(a, b, _) => Names::BucketFeatures(a.clone(), b.clone(), feat),
             Names::Wide(a, b, c, d) => {

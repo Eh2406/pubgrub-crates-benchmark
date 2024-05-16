@@ -1,6 +1,8 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
-use internment::{ArcIntern, Intern};
 use itertools::Itertools;
 
 fn is_default<D: Default + PartialEq>(t: &D) -> bool {
@@ -9,14 +11,14 @@ fn is_default<D: Default + PartialEq>(t: &D) -> bool {
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Dependency {
-    pub name: ArcIntern<str>,
-    pub package_name: ArcIntern<str>,
+    pub name: Arc<str>,
+    pub package_name: Arc<str>,
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
-    pub req: Intern<semver::VersionReq>,
+    pub req: Box<semver::VersionReq>,
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
-    pub features: Vec<ArcIntern<str>>,
+    pub features: Vec<Arc<str>>,
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
     pub default_features: bool,
@@ -52,17 +54,17 @@ impl TryFrom<&crates_index::Dependency> for Dependency {
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct Version {
-    pub name: ArcIntern<str>,
-    pub vers: Intern<semver::Version>,
+    pub name: Arc<str>,
+    pub vers: Box<semver::Version>,
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
     pub deps: Vec<Dependency>,
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
-    pub features: BTreeMap<ArcIntern<str>, BTreeSet<ArcIntern<str>>>,
+    pub features: BTreeMap<Arc<str>, BTreeSet<Arc<str>>>,
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
-    pub links: Option<ArcIntern<str>>,
+    pub links: Option<Arc<str>>,
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
     pub yanked: bool,
