@@ -1,6 +1,8 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
 
-use ahash::AHashMap as HashMap;
 use crates_index::GitIndex;
 use rayon::iter::ParallelIterator;
 
@@ -25,10 +27,7 @@ pub fn read_index(
                 .collect();
             (name, ver_lookup)
         })
-        // HACK: typeck does _not_ like a parallel collect to an AHashMap, regardless, this should
-        // probably collect to a DashMap?
-        .collect::<std::collections::HashMap<_, _, _>>()
-        .into();
+        .collect();
     dbg!("Done reading index");
     &*Box::leak(Box::new(crates))
 }

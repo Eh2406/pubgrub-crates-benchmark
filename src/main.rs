@@ -1,7 +1,7 @@
 use std::{
     cell::{Cell, RefCell},
     cmp::Reverse,
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     error::Error,
     fs::File,
     hash::{Hash, Hasher},
@@ -11,7 +11,6 @@ use std::{
     time::Instant,
 };
 
-use ahash::{AHashMap as HashMap, AHashSet as HashSet};
 use crates_index::DependencyKind;
 use hasher::StableHasher;
 use indicatif::{ParallelProgressIterator, ProgressBar, ProgressFinish, ProgressStyle};
