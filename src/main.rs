@@ -5,7 +5,7 @@ use std::{
     error::Error,
     fs::File,
     hash::{Hash, Hasher},
-    io::Write,
+    io::{BufWriter, Write},
     ops::Bound,
     rc::Rc,
     sync::mpsc,
@@ -124,7 +124,7 @@ impl<'c> Index<'c> {
         }
 
         let file_name = format!("out/pubgrub_ron/{}@{}.ron", name.0.crate_(), name.1);
-        let mut file = File::create(&file_name).unwrap();
+        let mut file = BufWriter::new(File::create(&file_name).unwrap());
         ron::ser::to_writer_pretty(&mut file, &dependency_provider, PrettyConfig::new()).unwrap();
         file.flush().unwrap();
     }
@@ -151,7 +151,7 @@ impl<'c> Index<'c> {
         let out = self.make_index_ron_data();
 
         let file_name = format!("out/index_ron/{}@{}.ron", name.0.crate_(), name.1);
-        let mut file = File::create(&file_name).unwrap();
+        let mut file = BufWriter::new(File::create(&file_name).unwrap());
         ron::ser::to_writer_pretty(&mut file, &out, PrettyConfig::new()).unwrap();
         file.flush().unwrap();
     }
@@ -704,20 +704,17 @@ fn process_carte_version<'c>(
         Ok(map) => {
             if !dp.check(root.clone(), &map) {
                 dp.make_index_ron_file();
-                dp.make_pubgrub_ron_file();
                 panic!("failed check");
             }
         }
         Err(PubGrubError::NoSolution(_derivation)) => {}
         Err(e) => {
             dp.make_index_ron_file();
-            dp.make_pubgrub_ron_file();
             dbg!(e);
         }
     }
     if duration > TIME_MAKE_FILE {
         dp.make_index_ron_file();
-        dp.make_pubgrub_ron_file();
     }
 
     dp.reset_time();
@@ -734,6 +731,12 @@ fn process_carte_version<'c>(
         dp.make_index_ron_file();
         println!("failed to match cargo {root:?}");
     }
+
+    if duration > 20.0 * (cargo_duration + 0.015) {
+        dp.make_index_ron_file();
+        println!("pub 20x slower than cargo {root:?}");
+    }
+
     let mut cargo_check_pub_lock_res = false;
     let mut cargo_check_pub_lock_time = 0.0;
     if res.is_ok() {
@@ -838,8 +841,8 @@ struct OutPutSummery {
 mod tests;
 
 fn main() {
-    let create_filter = |name: &str| !name.contains("solana");
-    println!("!!!!!!!!!! Excluding Solana Crates !!!!!!!!!!");
+    // let create_filter = |name: &str| !name.contains("solana");
+    // println!("!!!!!!!!!! Excluding Solana Crates !!!!!!!!!!");
     let version_filter =
         |version: &index_data::Version| !version.yanked && Summary::try_from(version).is_ok();
     println!("!!!!!!!!!! Excluding Yanked and Non Cargo Summary Versions !!!!!!!!!!");
@@ -847,7 +850,7 @@ fn main() {
     let index =
         crates_index::GitIndex::with_path("index", "https://github.com/rust-lang/crates.io-index")
             .unwrap();
-    let (data, cargo_crates) = read_index(&index, create_filter, version_filter);
+    let (data, cargo_crates) = read_index(&index, |_| true, version_filter);
 
     let (tx, rx) = mpsc::channel::<OutPutSummery>();
 
@@ -875,12 +878,306 @@ fn main() {
         )
     });
 
+    let names = [
+        // "addr2line",
+        // "adler",
+        // "ahash",
+        // "aho-corasick",
+        // "android_system_properties",
+        // "android-tzdata",
+        // "ansi_term",
+        // "arrayref",
+        // "arrayvec",
+        // "ascii",
+        // "assert_matches",
+        // "atty",
+        // "autocfg",
+        // "backtrace",
+        // "base64",
+        // "bincode",
+        // "bitflags",
+        // "blake3",
+        // "block-buffer",
+        // "block-padding",
+        // "borsh",
+        // "borsh-derive",
+        // "borsh-derive-internal",
+        // "borsh-schema-derive-internal",
+        // "bs58",
+        // "bumpalo",
+        // "bv",
+        // "byteorder",
+        // "bytes",
+        // "byte-tools",
+        // "cc",
+        // "cfg-if",
+        // "chrono",
+        // "clap",
+        // "combine",
+        // "console",
+        // "console_error_panic_hook",
+        // "console_log",
+        // "constant_time_eq",
+        // "core-foundation",
+        // "core-foundation-sys",
+        // "cpufeatures",
+        // "crossbeam-channel",
+        // "crossbeam-deque",
+        // "crossbeam-epoch",
+        // "crossbeam-utils",
+        // "crunchy",
+        // "crypto-mac",
+        // "curve25519-dalek",
+        // "derivation-path",
+        // "dialoguer",
+        // "digest",
+        // "dlopen",
+        // "dlopen_derive",
+        // "ed25519-dalek",
+        // "ed25519-dalek-bip32",
+        // "either",
+        // "encode_unicode",
+        // "encoding_rs",
+        // "env_logger",
+        // "errno",
+        // "failure",
+        // "fake-simd",
+        // "fastrand",
+        // "feature-probe",
+        // "fnv",
+        // "form_urlencoded",
+        // "fuchsia-zircon",
+        // "fuchsia-zircon-sys",
+        // "futures",
+        // "futures-channel",
+        // "futures-core",
+        // "futures-io",
+        // "futures-macro",
+        // "futures-sink",
+        // "futures-task",
+        // "futures-util",
+        // "generic-array",
+        // "gethostname",
+        // "getrandom",
+        // "gimli",
+        // "h2",
+        // "hash32",
+        // "hashbrown",
+        // "hermit-abi",
+        // "hmac",
+        // "hmac-drbg",
+        // "http",
+        // "httparse",
+        // "http-body",
+        // "httpdate",
+        // "humantime",
+        // "hyper",
+        // "hyper-rustls",
+        // "iana-time-zone",
+        // "iana-time-zone-haiku",
+        // "idna",
+        // "im",
+        // "indexmap",
+        // "indicatif",
+        // "iovec",
+        // "ipnet",
+        // "itertools",
+        // "itoa",
+        // "jobserver",
+        // "jsonrpc-core",
+        // "js-sys",
+        // "keccak",
+        // "kernel32-sys",
+        // "lazy_static",
+        // "libc",
+        // "libsecp256k1",
+        // "libsecp256k1-core",
+        // "libsecp256k1-gen-ecmult",
+        // "libsecp256k1-gen-genmult",
+        // "light-poseidon",
+        // "linux-raw-sys",
+        // "lock_api",
+        // "log",
+        // "memchr",
+        // "memmap2",
+        // "memoffset",
+        // "mime",
+        // "mime_guess",
+        // "miniz_oxide",
+        // "mio",
+        // "miow",
+        // "native-tls",
+        // "net2",
+        // "nix",
+        // "num_cpus",
+        // "num_enum",
+        // "num_enum_derive",
+        // "number_prefix",
+        // "num-derive",
+        // "num-traits",
+        // "object",
+        // "once_cell",
+        // "opaque-debug",
+        // "openssl-probe",
+        // "parking_lot",
+        // "parking_lot_core",
+        // "paste",
+        // "pbkdf2",
+        // "percent-encoding",
+        // "pin-project",
+        // "pin-project-internal",
+        // "pin-project-lite",
+        // "pin-utils",
+        // "pkg-config",
+        // "ppv-lite86",
+        // "proc-macro2",
+        // "proc-macro-crate",
+        // "qstring",
+        // "quote",
+        // "rand",
+        // "rand_chacha",
+        // "rand_core",
+        // "rand_hc",
+        // "rand_xoshiro",
+        // "rayon",
+        // "rayon-core",
+        // "redox_syscall",
+        // "regex",
+        // "regex-automata",
+        // "regex-syntax",
+        // "reqwest",
+        // "ring",
+        // "rpassword",
+        // "rustc_version",
+        // "rustc-demangle",
+        // "rustc-hash",
+        // "rustix",
+        // "rustls",
+        // "rustversion",
+        // "ryu",
+        // "schannel",
+        // "scopeguard",
+        // "sct",
+        // "security-framework",
+        // "security-framework-sys",
+        // "semver",
+        // "semver-parser",
+        // "serde",
+        // "serde_bytes",
+        // "serde_derive",
+        // "serde_json",
+        // "serde_urlencoded",
+        // "serde_with",
+        // "serde_with_macros",
+        // "sha2",
+        // "sha3",
+        // "slab",
+        // "smallvec",
+        // "socket2",
+        // "solana_rbpf",
+        // "solana-clap-utils",
+        // "solana-client",
+        // "solana-config-program",
+        // "solana-crate-features",
+        // "solana-faucet",
+        // "solana-frozen-abi",
+        // "solana-frozen-abi-macro",
+        // "solana-logger",
+        // "solana-measure",
+        // "solana-metrics",
+        // "solana-net-utils",
+        // "solana-perf",
+        // "solana-program",
+        // "solana-rayon-threadlimit",
+        // "solana-remote-wallet",
+        // "solana-sdk",
+        // "solana-sdk-macro",
+        "solana-transaction-status",
+        // "solana-version",
+        // "solana-vote-program",
+        // "spin",
+        // "strsim",
+        // "subtle",
+        // "syn",
+        // "synstructure",
+        // "tempfile",
+        // "termcolor",
+        // "textwrap",
+        // "thiserror",
+        // "thiserror-impl",
+        // "time",
+        // "tiny-bip39",
+        // "tinyvec",
+        // "tinyvec_macros",
+        // "tokio",
+        // "tokio-rustls",
+        // "tokio-util",
+        // "toml",
+        // "tower-service",
+        // "tracing",
+        // "tracing-core",
+        // "tracing-futures",
+        // "try-lock",
+        // "tungstenite",
+        // "typenum",
+        // "unicase",
+        // "unicode-bidi",
+        // "unicode-ident",
+        // "unicode-normalization",
+        // "unicode-width",
+        // "unicode-xid",
+        // "untrusted",
+        // "uriparse",
+        // "url",
+        // "utf-8",
+        // "vcpkg",
+        // "vec_map",
+        // "version_check",
+        // "void",
+        // "want",
+        // "wasi",
+        // "wasm-bindgen",
+        // "wasm-bindgen-backend",
+        // "wasm-bindgen-futures",
+        // "wasm-bindgen-macro",
+        // "wasm-bindgen-macro-support",
+        // "wasm-bindgen-shared",
+        // "webpki",
+        // "webpki-roots",
+        // "web-sys",
+        // "winapi",
+        // "winapi-build",
+        // "winapi-i686-pc-windows-gnu",
+        // "winapi-util",
+        // "winapi-x86_64-pc-windows-gnu",
+        // "windows_aarch64_gnullvm",
+        // "windows_aarch64_msvc",
+        // "windows_i686_gnu",
+        // "windows_i686_gnullvm",
+        // "windows_i686_msvc",
+        // "windows_x86_64_gnu",
+        // "windows_x86_64_gnullvm",
+        // "windows_x86_64_msvc",
+        // "windows-core",
+        // "windows-sys",
+        // "windows-targets",
+        // "winreg",
+        // "ws2_32-sys",
+        // "zeroize",
+    ];
+
     let template = "PubGrub: [Time: {elapsed}, Rate: {per_sec}, Remaining: {eta}] {wide_bar} {pos:>6}/{len:6}: {percent:>3}%";
-    let style = ProgressBar::new(data.values().map(|v| v.len()).sum::<usize>() as u64)
-        .with_style(ProgressStyle::with_template(template).unwrap())
-        .with_finish(ProgressFinish::AndLeave);
+    let style = ProgressBar::new(
+        data.iter()
+            .filter(|(name, _)| names.contains(&name.as_str()))
+            .map(|(_, v)| v.len())
+            .sum::<usize>() as u64,
+    )
+    .with_style(ProgressStyle::with_template(template).unwrap())
+    .with_finish(ProgressFinish::AndLeave);
 
     data.par_iter()
+        .filter(|(name, _)| names.contains(&name.as_str()))
         .flat_map(|(c, v)| v.par_iter().map(|(v, _)| (c.clone(), v)))
         .progress_with(style)
         .map(|(crt, ver)| {

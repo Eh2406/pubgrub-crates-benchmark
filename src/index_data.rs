@@ -193,6 +193,30 @@ pub struct Version {
     pub yanked: bool,
 }
 
+#[cfg(test)]
+impl Version {
+    pub(crate) fn without_features(self) -> Option<Self> {
+        if !self.features.is_empty() {
+            Some(Self {
+                features: Intern::new(Default::default()),
+                ..self
+            })
+        } else {
+            None
+        }
+    }
+    pub(crate) fn without_deps(self) -> Option<Self> {
+        if !self.deps.deps.is_empty() {
+            Some(Self {
+                deps: DependencyList::default(),
+                ..self
+            })
+        } else {
+            None
+        }
+    }
+}
+
 impl<'da> From<RawIndexVersion<'da>> for Version {
     fn from(value: RawIndexVersion<'da>) -> Self {
         Self {
