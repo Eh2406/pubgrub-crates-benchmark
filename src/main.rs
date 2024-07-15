@@ -45,7 +45,7 @@ use read_index::read_test_file;
 #[global_allocator]
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
-const TIME_MAKE_FILE: f32 = 40.0;
+const TIME_MAKE_FILE: f32 = 30.0;
 const TIME_CUT_OFF: f32 = TIME_MAKE_FILE * 4.0;
 
 #[derive(Clone)]

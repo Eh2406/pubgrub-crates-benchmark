@@ -28,10 +28,5 @@
                 optional: true,
             ),
         ],
-        features: {
-            "cookies": [
-                "dep:c",
-            ],
-        },
     ),
 ]

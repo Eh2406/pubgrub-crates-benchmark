@@ -53,7 +53,7 @@ fn check<'c>(dp: &mut Index<'c>, root: Rc<Names<'c>>, ver: &semver::Version) -> 
         return false;
     }
 
-    if duration > 150.0 * (cargo_duration + 0.015) {
+    if duration > 100.0 * (cargo_duration + 0.015) {
         println!(
             "pub {:.2}x slower than cargo {:.2} / {:.2}",
             duration / (cargo_duration + 0.015),
