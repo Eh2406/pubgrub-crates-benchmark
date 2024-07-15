@@ -53,7 +53,7 @@ fn check<'c>(dp: &mut Index<'c>, root: Rc<Names<'c>>, ver: &semver::Version) -> 
         return false;
     }
 
-    if duration > 100.0 * (cargo_duration + 0.015) {
+    if duration > 50.0 * (cargo_duration + 0.015) {
         println!(
             "pub {:.2}x slower than cargo {:.2} / {:.2}",
             duration / (cargo_duration + 0.015),
@@ -175,7 +175,6 @@ fn named_from_files_pass_without_vers() {
         let start_time = std::time::Instant::now();
         let data = std::fs::read_to_string(&case).unwrap();
         let mut data: Vec<index_data::Version> = ron::de::from_str(&data).unwrap();
-        let mut last_len = data.len();
         let mut offset = 0;
         'data: loop {
             for i in 0..data.len() {
@@ -189,11 +188,7 @@ fn named_from_files_pass_without_vers() {
                 if !check(&mut dp, root, &ver) {
                     data = dp.make_index_ron_data();
                     offset = i;
-
-                    if data.len() + 10 < last_len {
-                        dp.make_index_ron_file();
-                        last_len = data.len();
-                    }
+                    dp.make_index_ron_file();
                     println!("Failed on removing {i} of {len}");
                     continue 'data;
                 };
@@ -205,10 +200,7 @@ fn named_from_files_pass_without_vers() {
                     if !check(&mut dp, root, &ver) {
                         data = dp.make_index_ron_data();
                         offset = i;
-                        if data.len() + 10 < last_len {
-                            dp.make_index_ron_file();
-                            last_len = data.len();
-                        }
+                        dp.make_index_ron_file();
                         println!("Failed on without_features {i} of {len}");
                         continue 'data;
                     };
@@ -223,10 +215,7 @@ fn named_from_files_pass_without_vers() {
                         if !check(&mut dp, root, &ver) {
                             data = dp.make_index_ron_data();
                             offset = i;
-                            if data.len() + 10 < last_len {
-                                dp.make_index_ron_file();
-                                last_len = data.len();
-                            }
+                            dp.make_index_ron_file();
                             println!("Failed on without_deps {i} of {len}");
                             continue 'data;
                         };
