@@ -54,7 +54,7 @@ fn check<'c>(dp: &mut Index<'c>, root: Rc<Names<'c>>, ver: &semver::Version) -> 
     }
 
     print!("!");
-    if duration > 15.0 * (cargo_duration + 0.02) {
+    if duration > 50.0 * (cargo_duration + 0.02) {
         println!(
             "pub {:.2}x slower than cargo {:.2} / {:.2}",
             duration / (cargo_duration + 0.02),
@@ -206,6 +206,24 @@ fn named_from_files_pass_without_vers() {
                     };
                     data.pop();
                 }
+                for f in 0..removed.features.len() {
+                    if let Some(without_features) = removed.clone().without_a_feature(f) {
+                        if TryInto::<Summary>::try_into(&without_features).is_ok() {
+                            data.push(without_features);
+                            let (crates, cargo_data) = read_test_file(data.iter().cloned());
+                            let mut dp = Index::new(&crates, &cargo_data);
+                            let root = new_bucket(&name, (&ver).into(), true);
+                            if !check(&mut dp, root, &ver) {
+                                data = dp.make_index_ron_data();
+                                offset = i;
+                                dp.make_index_ron_file();
+                                println!("Failed on without_a_feature({f}) {i} of {len}");
+                                continue 'data;
+                            };
+                            data.pop();
+                        }
+                    }
+                }
                 if let Some(without_deps) = removed.clone().without_deps() {
                     if TryInto::<Summary>::try_into(&without_deps).is_ok() {
                         data.push(without_deps);
@@ -220,6 +238,24 @@ fn named_from_files_pass_without_vers() {
                             continue 'data;
                         };
                         data.pop();
+                    }
+                }
+                for d in 0..removed.deps.len() {
+                    if let Some(without_deps) = removed.clone().without_a_dep(d) {
+                        if TryInto::<Summary>::try_into(&without_deps).is_ok() {
+                            data.push(without_deps);
+                            let (crates, cargo_data) = read_test_file(data.iter().cloned());
+                            let mut dp = Index::new(&crates, &cargo_data);
+                            let root = new_bucket(&name, (&ver).into(), true);
+                            if !check(&mut dp, root, &ver) {
+                                data = dp.make_index_ron_data();
+                                offset = i;
+                                dp.make_index_ron_file();
+                                println!("Failed on without_a_dep({d}) {i} of {len}");
+                                continue 'data;
+                            };
+                            data.pop();
+                        }
                     }
                 }
             }
