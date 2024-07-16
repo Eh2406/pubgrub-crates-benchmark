@@ -53,10 +53,11 @@ fn check<'c>(dp: &mut Index<'c>, root: Rc<Names<'c>>, ver: &semver::Version) -> 
         return false;
     }
 
-    if duration > 50.0 * (cargo_duration + 0.015) {
+    print!("!");
+    if duration > 15.0 * (cargo_duration + 0.02) {
         println!(
             "pub {:.2}x slower than cargo {:.2} / {:.2}",
-            duration / (cargo_duration + 0.015),
+            duration / (cargo_duration + 0.02),
             duration,
             cargo_duration
         );
@@ -180,9 +181,8 @@ fn named_from_files_pass_without_vers() {
             for i in 0..data.len() {
                 let len = data.len();
                 let i = (i + offset) % len;
-                let mut small_data = data.clone();
-                let removed = small_data.remove(i);
-                let (crates, cargo_data) = read_test_file(small_data.iter().cloned());
+                let removed = data.swap_remove(i);
+                let (crates, cargo_data) = read_test_file(data.iter().cloned());
                 let mut dp = Index::new(&crates, &cargo_data);
                 let root = new_bucket(&name, (&ver).into(), true);
                 if !check(&mut dp, root, &ver) {
@@ -193,8 +193,8 @@ fn named_from_files_pass_without_vers() {
                     continue 'data;
                 };
                 if let Some(without_features) = removed.clone().without_features() {
-                    small_data.push(without_features);
-                    let (crates, cargo_data) = read_test_file(small_data.iter().cloned());
+                    data.push(without_features);
+                    let (crates, cargo_data) = read_test_file(data.iter().cloned());
                     let mut dp = Index::new(&crates, &cargo_data);
                     let root = new_bucket(&name, (&ver).into(), true);
                     if !check(&mut dp, root, &ver) {
@@ -204,12 +204,12 @@ fn named_from_files_pass_without_vers() {
                         println!("Failed on without_features {i} of {len}");
                         continue 'data;
                     };
-                    small_data.pop();
+                    data.pop();
                 }
                 if let Some(without_deps) = removed.clone().without_deps() {
                     if TryInto::<Summary>::try_into(&without_deps).is_ok() {
-                        small_data.push(without_deps);
-                        let (crates, cargo_data) = read_test_file(small_data.iter().cloned());
+                        data.push(without_deps);
+                        let (crates, cargo_data) = read_test_file(data.iter().cloned());
                         let mut dp = Index::new(&crates, &cargo_data);
                         let root = new_bucket(&name, (&ver).into(), true);
                         if !check(&mut dp, root, &ver) {
@@ -219,7 +219,7 @@ fn named_from_files_pass_without_vers() {
                             println!("Failed on without_deps {i} of {len}");
                             continue 'data;
                         };
-                        small_data.pop();
+                        data.pop();
                     }
                 }
             }
