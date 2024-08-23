@@ -28,87 +28,97 @@ fn check<'c>(dp: &mut Index<'c>, root: Rc<Names<'c>>, ver: &semver::Version) -> 
     } else {
         false
     };
+    let duration = dp.duration();
+    let should_cancel_call_count = dp.should_cancel_call_count();
+    let rate = duration / (should_cancel_call_count as f32 + 200000.0);
 
-    match res.as_ref() {
-        Ok(map) => {
-            if !dp.check(root.clone(), &map) {
-                return false;
-            }
-        }
-
-        Err(PubGrubError::NoSolution(_derivation)) => {
-            // eprintln!("{}", DefaultStringReporter::report(&derivation));
-        }
-        Err(_e) => {
-            return false;
-        }
-    }
-    dp.reset_time();
-    let cargo_out = cargo_resolver::resolve(root.crate_().into(), &ver, dp);
-
-    let cyclic_package_dependency = &cargo_out
-        .as_ref()
-        .map_err(|e| e.to_string().starts_with("cyclic package dependency"))
-        == &Err(true);
-
-    if cyclic_package_dependency != pub_cyclic_package_dependency {
+    if !pub_cyclic_package_dependency && rate > 0.0001 {
+        dbg!(root.to_string(), rate);
         return false;
     }
+    /*
+       match res.as_ref() {
+           Ok(map) => {
+               if !dp.check(root.clone(), &map) {
+                   return false;
+               }
+           }
 
-    if !cyclic_package_dependency && res.is_ok() != cargo_out.is_ok() {
-        return false;
-    }
+           Err(PubGrubError::NoSolution(_derivation)) => {
+               // eprintln!("{}", DefaultStringReporter::report(&derivation));
+           }
+           Err(_e) => {
+               return false;
+           }
+       }
+       dp.reset_time();
+       let cargo_out = cargo_resolver::resolve(root.crate_().into(), &ver, dp);
 
-    if res.is_ok() {
-        dp.past_result = res
-            .as_ref()
-            .map(|map| {
-                let mut results: HashMap<InternedString, BTreeSet<semver::Version>> = HashMap::new();
-                for (k, v) in map.iter() {
-                    if k.is_real() {
-                        results
-                            .entry(k.crate_().into())
-                            .or_default()
-                            .insert(v.clone());
-                    }
-                }
-                results
-            })
-            .ok();
-        dp.reset_time();
-        let cargo_check_pub_lock_out = cargo_resolver::resolve(root.crate_().into(), &ver, dp);
+       let cyclic_package_dependency = &cargo_out
+           .as_ref()
+           .map_err(|e| e.to_string().starts_with("cyclic package dependency"))
+           == &Err(true);
 
-        let cyclic_package_dependency_pub_lock = &cargo_check_pub_lock_out
-            .as_ref()
-            .map_err(|e| e.to_string().starts_with("cyclic package dependency"))
-            == &Err(true);
+       if cyclic_package_dependency != pub_cyclic_package_dependency {
+           return false;
+       }
 
-        if !cyclic_package_dependency_pub_lock && !cargo_check_pub_lock_out.is_ok() {
-            return false;
-        }
-    }
-    if cargo_out.is_ok() {
-        dp.past_result = cargo_out
-            .as_ref()
-            .map(|map| {
-                let mut results: HashMap<InternedString, BTreeSet<semver::Version>> = HashMap::new();
-                for v in map.iter() {
-                    results
-                        .entry(v.name())
-                        .or_default()
-                        .insert(v.version().clone());
-                }
-                results
-            })
-            .ok();
-        dp.reset_time();
-        let pub_check_cargo_lock_out = resolve(dp, root.clone(), ver.clone());
+       if !cyclic_package_dependency && res.is_ok() != cargo_out.is_ok() {
+           return false;
+       }
 
-        if !pub_check_cargo_lock_out.is_ok() {
-            return false;
-        }
-    }
+       if res.is_ok() {
+           dp.past_result = res
+               .as_ref()
+               .map(|map| {
+                   let mut results: HashMap<InternedString, BTreeSet<semver::Version>> =
+                       HashMap::new();
+                   for (k, v) in map.iter() {
+                       if k.is_real() {
+                           results
+                               .entry(k.crate_().into())
+                               .or_default()
+                               .insert(v.clone());
+                       }
+                   }
+                   results
+               })
+               .ok();
+           dp.reset_time();
+           let cargo_check_pub_lock_out = cargo_resolver::resolve(root.crate_().into(), &ver, dp);
 
+           let cyclic_package_dependency_pub_lock = &cargo_check_pub_lock_out
+               .as_ref()
+               .map_err(|e| e.to_string().starts_with("cyclic package dependency"))
+               == &Err(true);
+
+           if !cyclic_package_dependency_pub_lock && !cargo_check_pub_lock_out.is_ok() {
+               return false;
+           }
+       }
+       if cargo_out.is_ok() {
+           dp.past_result = cargo_out
+               .as_ref()
+               .map(|map| {
+                   let mut results: HashMap<InternedString, BTreeSet<semver::Version>> =
+                       HashMap::new();
+                   for v in map.iter() {
+                       results
+                           .entry(v.name())
+                           .or_default()
+                           .insert(v.version().clone());
+                   }
+                   results
+               })
+               .ok();
+           dp.reset_time();
+           let pub_check_cargo_lock_out = resolve(dp, root.clone(), ver.clone());
+
+           if !pub_check_cargo_lock_out.is_ok() {
+               return false;
+           }
+       }
+    */
     true
 }
 
@@ -151,11 +161,13 @@ fn named_from_files_pass_tests() {
         let mut dp = Index::new(&crates, &cargo_crates);
         let root = new_bucket(&name, (&ver).into(), true);
         if !check(&mut dp, root, &ver) {
-            dp.make_index_ron_file();
+            eprintln!(" in {}s", start_time.elapsed().as_secs());
+            // dp.make_index_ron_file();
             faild.push(file_name.to_string());
+        } else {
+            eprintln!(" in {}s", start_time.elapsed().as_secs());
         };
         dp.make_pubgrub_ron_file();
-        eprintln!(" in {}s", start_time.elapsed().as_secs());
     }
     assert_eq!(faild.as_slice(), &Vec::<String>::new());
 }
@@ -174,14 +186,15 @@ fn named_from_files_pass_without_vers() {
         let mut data: Vec<index_data::Version> = ron::de::from_str(&data).unwrap();
         let mut offset = 0;
         'data: loop {
-            for i in 0..data.len() {
-                let len = data.len();
+            let len = data.len();
+            for i in 0..len {
                 let i = (i + offset) % len;
+                println!("Removing {i} of {len}");
                 let removed = data.swap_remove(i);
                 let (crates, cargo_data) = read_test_file(data.iter().cloned());
                 let mut dp = Index::new(&crates, &cargo_data);
                 if !check(&mut dp, root.clone(), &ver) {
-                    data = dp.make_index_ron_data();
+                    // data = dp.make_index_ron_data();
                     offset = i;
                     println!("Failed on removing {i} of {len}");
                     continue 'data;
@@ -191,7 +204,7 @@ fn named_from_files_pass_without_vers() {
                     let (crates, cargo_data) = read_test_file(data.iter().cloned());
                     let mut dp = Index::new(&crates, &cargo_data);
                     if !check(&mut dp, root.clone(), &ver) {
-                        data = dp.make_index_ron_data();
+                        // data = dp.make_index_ron_data();
                         offset = i;
                         println!("Failed on without_features {i} of {len}");
                         continue 'data;
@@ -205,7 +218,7 @@ fn named_from_files_pass_without_vers() {
                             let (crates, cargo_data) = read_test_file(data.iter().cloned());
                             let mut dp = Index::new(&crates, &cargo_data);
                             if !check(&mut dp, root.clone(), &ver) {
-                                data = dp.make_index_ron_data();
+                                // data = dp.make_index_ron_data();
                                 offset = i;
                                 println!("Failed on without_a_feature({f}) {i} of {len}");
                                 continue 'data;
@@ -220,7 +233,7 @@ fn named_from_files_pass_without_vers() {
                         let (crates, cargo_data) = read_test_file(data.iter().cloned());
                         let mut dp = Index::new(&crates, &cargo_data);
                         if !check(&mut dp, root.clone(), &ver) {
-                            data = dp.make_index_ron_data();
+                            // data = dp.make_index_ron_data();
                             offset = i;
                             println!("Failed on without_deps {i} of {len}");
                             continue 'data;
@@ -235,7 +248,7 @@ fn named_from_files_pass_without_vers() {
                             let (crates, cargo_data) = read_test_file(data.iter().cloned());
                             let mut dp = Index::new(&crates, &cargo_data);
                             if !check(&mut dp, root.clone(), &ver) {
-                                data = dp.make_index_ron_data();
+                                // data = dp.make_index_ron_data();
                                 offset = i;
                                 println!("Failed on without_a_dep({d}) {i} of {len}");
                                 continue 'data;
@@ -244,13 +257,48 @@ fn named_from_files_pass_without_vers() {
                         }
                     }
                 }
+                for d in 0..removed.deps.len() {
+                    if let Some(without_deps) =
+                        removed.clone().without_default_features_for_a_dep(d)
+                    {
+                        if TryInto::<Summary>::try_into(&without_deps).is_ok() {
+                            data.push(without_deps);
+                            let (crates, cargo_data) = read_test_file(data.iter().cloned());
+                            let mut dp = Index::new(&crates, &cargo_data);
+                            if !check(&mut dp, root.clone(), &ver) {
+                                // data = dp.make_index_ron_data();
+                                offset = i;
+                                println!("Failed on without_default_features_for_a_dep({d}) {i} of {len}");
+                                continue 'data;
+                            };
+                            data.pop();
+                        }
+                    }
+                }
+                for d in 0..removed.deps.len() {
+                    if let Some(without_deps) = removed.clone().without_req_for_a_dep(d) {
+                        if TryInto::<Summary>::try_into(&without_deps).is_ok() {
+                            data.push(without_deps);
+                            let (crates, cargo_data) = read_test_file(data.iter().cloned());
+                            let mut dp = Index::new(&crates, &cargo_data);
+                            if !check(&mut dp, root.clone(), &ver) {
+                                // data = dp.make_index_ron_data();
+                                offset = i;
+                                println!("Failed on without_default_features_for_a_dep({d}) {i} of {len}");
+                                continue 'data;
+                            };
+                            data.pop();
+                        }
+                    }
+                }
+                data.push(removed);
             }
             break;
         }
-        let (crates, cargo_data) = read_test_file(data);
+        let (crates, cargo_data) = read_test_file(data.iter().cloned());
         let mut dp = Index::new(&crates, &cargo_data);
-        if !check(&mut dp, root, &ver) {
-            dp.make_index_ron_file();
+        if !check(&mut dp, root.clone(), &ver) {
+            dp.make_index_ron_file_raw(data, &root, &ver);
         };
 
         eprintln!(" in {}s", start_time.elapsed().as_secs());

@@ -137,7 +137,7 @@ impl DependencyList {
     }
 
     pub fn len(&self) -> usize {
-        self.deps.len()
+        self.deps.values().map(|d| d.len()).sum()
     }
 }
 
@@ -276,16 +276,72 @@ impl Version {
     pub(crate) fn without_a_dep(self, i: usize) -> Option<Self> {
         if !self.deps.deps.is_empty() {
             Some(Self {
-                deps: DependencyList {
-                    deps: self
-                        .deps
-                        .deps
-                        .iter()
-                        .enumerate()
-                        .filter(|(v, _)| v != &i)
-                        .map(|(_, (f, d))| (f.clone(), d.clone()))
-                        .collect(),
-                },
+                deps: self
+                    .deps
+                    .deps
+                    .iter()
+                    .flat_map(|(_, v)| v.iter())
+                    .enumerate()
+                    .filter(|(v, _)| v != &i)
+                    .map(|(_, d)| d.into())
+                    .collect::<Vec<RawIndexDependency<'_>>>()
+                    .into(),
+                ..self
+            })
+        } else {
+            None
+        }
+    }
+    pub(crate) fn without_default_features_for_a_dep(self, i: usize) -> Option<Self> {
+        if !self.deps.deps.is_empty() {
+            Some(Self {
+                deps: self
+                    .deps
+                    .deps
+                    .iter()
+                    .flat_map(|(_, v)| v.iter())
+                    .map(|d| d.into())
+                    .enumerate()
+                    .filter_map(|(n, mut d): (usize, RawIndexDependency)| {
+                        if n != i {
+                            Some(d)
+                        } else if d.default_features {
+                            d.default_features = false;
+                            Some(d)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<RawIndexDependency<'_>>>()
+                    .into(),
+                ..self
+            })
+        } else {
+            None
+        }
+    }
+    pub(crate) fn without_req_for_a_dep(self, i: usize) -> Option<Self> {
+        if !self.deps.deps.is_empty() {
+            Some(Self {
+                deps: self
+                    .deps
+                    .deps
+                    .iter()
+                    .flat_map(|(_, v)| v.iter())
+                    .map(|d| d.into())
+                    .enumerate()
+                    .filter_map(|(n, mut d): (usize, RawIndexDependency)| {
+                        if n != i {
+                            Some(d)
+                        } else if d.req != semver::VersionReq::STAR {
+                            d.req = semver::VersionReq::STAR;
+                            Some(d)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<RawIndexDependency<'_>>>()
+                    .into(),
                 ..self
             })
         } else {

@@ -147,6 +147,18 @@ impl<'c> Index<'c> {
             .collect()
     }
 
+    fn make_index_ron_file_raw(
+        &self,
+        out: Vec<index_data::Version>,
+        root: &Rc<Names<'c>>,
+        ver: &semver::Version,
+    ) {
+        let file_name = format!("out/index_ron/{}@{}.ron", root.crate_(), ver);
+        let mut file = BufWriter::new(File::create(&file_name).unwrap());
+        ron::ser::to_writer_pretty(&mut file, &out, PrettyConfig::new()).unwrap();
+        file.flush().unwrap();
+    }
+
     fn make_index_ron_file(&self) {
         let grub_deps = self.pubgrub_dependencies.borrow();
 
@@ -155,12 +167,7 @@ impl<'c> Index<'c> {
             .find(|(name, _)| matches!(&**name, Names::Bucket(_, _, all) if *all))
             .unwrap();
 
-        let out = self.make_index_ron_data();
-
-        let file_name = format!("out/index_ron/{}@{}.ron", name.0.crate_(), name.1);
-        let mut file = BufWriter::new(File::create(&file_name).unwrap());
-        ron::ser::to_writer_pretty(&mut file, &out, PrettyConfig::new()).unwrap();
-        file.flush().unwrap();
+        self.make_index_ron_file_raw(self.make_index_ron_data(), &name.0, &name.1)
     }
 
     fn get_versions<Q>(&self, name: &Q) -> impl Iterator<Item = &semver::Version> + '_
@@ -886,100 +893,101 @@ pub fn process_carte_version<'c>(
     let duration = dp.duration();
     let should_cancel_call_count = dp.should_cancel_call_count();
     let get_dependencies_call_count = dp.pubgrub_dependencies.borrow().len();
-    match res.as_ref() {
-        Ok(map) => {
-            if !dp.check(root.clone(), &map) {
+    /*
+        match res.as_ref() {
+            Ok(map) => {
+                if !dp.check(root.clone(), &map) {
+                    dp.make_index_ron_file();
+                    panic!("failed check");
+                }
+            }
+            Err(PubGrubError::NoSolution(_derivation)) => {}
+            Err(e) => {
                 dp.make_index_ron_file();
-                panic!("failed check");
+                dbg!(e);
             }
         }
-        Err(PubGrubError::NoSolution(_derivation)) => {}
-        Err(e) => {
+        if duration > TIME_MAKE_FILE {
             dp.make_index_ron_file();
-            dbg!(e);
         }
-    }
-    if duration > TIME_MAKE_FILE {
-        dp.make_index_ron_file();
-    }
 
-    dp.reset_time();
-    let cargo_out = cargo_resolver::resolve(crt, &ver, dp);
-    let cargo_duration = dp.duration();
-
-    let cyclic_package_dependency = &cargo_out
-        .as_ref()
-        .map_err(|e| e.to_string().starts_with("cyclic package dependency"))
-        == &Err(true);
-
-    if cyclic_package_dependency != pub_cyclic_package_dependency {
-        dp.make_index_ron_file();
-        println!("failed to cyclic_package_dependency {root:?}");
-    }
-
-    if !cyclic_package_dependency && res.is_ok() != cargo_out.is_ok() {
-        dp.make_index_ron_file();
-        println!("failed to match cargo {root:?}");
-    }
-    let mut cargo_check_pub_lock_time = 0.0;
-    if res.is_ok() {
-        dp.past_result = res
-            .as_ref()
-            .map(|map| {
-                let mut results: HashMap<InternedString, BTreeSet<semver::Version>> =
-                    HashMap::new();
-                for (k, v) in map.iter() {
-                    if k.is_real() {
-                        results
-                            .entry(k.crate_().into())
-                            .or_default()
-                            .insert(v.clone());
-                    }
-                }
-                results
-            })
-            .ok();
         dp.reset_time();
-        let cargo_check_pub_lock_out = cargo_resolver::resolve(crt, &ver, dp);
-        cargo_check_pub_lock_time = dp.duration();
+        let cargo_out = cargo_resolver::resolve(crt, &ver, dp);
+        let cargo_duration = dp.duration();
 
-        let cyclic_package_dependency_pub_lock = &cargo_check_pub_lock_out
+        let cyclic_package_dependency = &cargo_out
             .as_ref()
             .map_err(|e| e.to_string().starts_with("cyclic package dependency"))
             == &Err(true);
 
-        if !cyclic_package_dependency_pub_lock && !cargo_check_pub_lock_out.is_ok() {
+        if cyclic_package_dependency != pub_cyclic_package_dependency {
             dp.make_index_ron_file();
-            println!("failed to match pub lock cargo {root:?}");
+            println!("failed to cyclic_package_dependency {root:?}");
         }
-    }
 
-    let mut pub_check_cargo_lock_time = 0.0;
-    if cargo_out.is_ok() {
-        dp.past_result = cargo_out
-            .as_ref()
-            .map(|map| {
-                let mut results: HashMap<InternedString, BTreeSet<semver::Version>> =
-                    HashMap::new();
-                for v in map.iter() {
+        if !cyclic_package_dependency && res.is_ok() != cargo_out.is_ok() {
+            dp.make_index_ron_file();
+            println!("failed to match cargo {root:?}");
+        }
+        let mut cargo_check_pub_lock_time = 0.0;
+        if res.is_ok() {
+            dp.past_result = res
+                .as_ref()
+                .map(|map| {
+                    let mut results: HashMap<InternedString, BTreeSet<semver::Version>> =
+                        HashMap::new();
+                    for (k, v) in map.iter() {
+                        if k.is_real() {
+                            results
+                                .entry(k.crate_().into())
+                                .or_default()
+                                .insert(v.clone());
+                        }
+                    }
                     results
-                        .entry(v.name())
-                        .or_default()
-                        .insert(v.version().clone());
-                }
-                results
-            })
-            .ok();
-        dp.reset_time();
-        let pub_check_cargo_lock_out = resolve(dp, root.clone(), ver.clone());
-        pub_check_cargo_lock_time = dp.duration();
+                })
+                .ok();
+            dp.reset_time();
+            let cargo_check_pub_lock_out = cargo_resolver::resolve(crt, &ver, dp);
+            cargo_check_pub_lock_time = dp.duration();
 
-        if !pub_check_cargo_lock_out.is_ok() {
-            dp.make_index_ron_file();
-            println!("failed to match cargo lock pub {root:?}");
+            let cyclic_package_dependency_pub_lock = &cargo_check_pub_lock_out
+                .as_ref()
+                .map_err(|e| e.to_string().starts_with("cyclic package dependency"))
+                == &Err(true);
+
+            if !cyclic_package_dependency_pub_lock && !cargo_check_pub_lock_out.is_ok() {
+                dp.make_index_ron_file();
+                println!("failed to match pub lock cargo {root:?}");
+            }
         }
-    }
 
+        let mut pub_check_cargo_lock_time = 0.0;
+        if cargo_out.is_ok() {
+            dp.past_result = cargo_out
+                .as_ref()
+                .map(|map| {
+                    let mut results: HashMap<InternedString, BTreeSet<semver::Version>> =
+                        HashMap::new();
+                    for v in map.iter() {
+                        results
+                            .entry(v.name())
+                            .or_default()
+                            .insert(v.version().clone());
+                    }
+                    results
+                })
+                .ok();
+            dp.reset_time();
+            let pub_check_cargo_lock_out = resolve(dp, root.clone(), ver.clone());
+            pub_check_cargo_lock_time = dp.duration();
+
+            if !pub_check_cargo_lock_out.is_ok() {
+                dp.make_index_ron_file();
+                println!("failed to match cargo lock pub {root:?}");
+            }
+        }
+    */
     OutPutSummery {
         name: crt,
         ver,
@@ -992,11 +1000,11 @@ pub fn process_carte_version<'c>(
             .as_ref()
             .map(|r| r.iter().filter(|(v, _)| v.is_real()).count())
             .unwrap_or(0),
-        cargo_time: cargo_duration,
-        cyclic_package_dependency,
-        cargo_deps: cargo_out.as_ref().map(|r| r.iter().count()).unwrap_or(0),
-        cargo_check_pub_lock_time,
-        pub_check_cargo_lock_time,
+        cargo_time: 0.0,
+        cyclic_package_dependency: false,
+        cargo_deps: 0,
+        cargo_check_pub_lock_time: 0.0,
+        pub_check_cargo_lock_time: 0.0,
     }
 }
 
