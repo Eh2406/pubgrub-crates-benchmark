@@ -1,0 +1,10 @@
+
+#!/bin/bash
+cargo b -r
+for value in {0..18}
+do
+    export RAYON_NUM_THREADS=$((185 - ($value * 10)))
+    echo "RAYON_NUM_THREADS $RAYON_NUM_THREADS"
+    cargo r -r
+done
+echo All done
