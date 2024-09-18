@@ -59,16 +59,16 @@ fn check<'c>(dp: &mut Index<'c>, root: Rc<Names<'c>>, ver: &semver::Version) -> 
             .as_ref()
             .map(|map| {
                 let mut results: HashMap<
-                    InternedString,
+                    usize,
                     BTreeSet<semver::Version>,
                     rustc_hash::FxBuildHasher,
                 > = HashMap::default();
                 for (k, v) in map.iter() {
                     if k.is_real() {
-                        results
-                            .entry(k.crate_().into())
-                            .or_default()
-                            .insert(v.clone());
+                        let Some(name_id) = dp.crates.get_index_of(k.crate_()) else {
+                            return HashMap::default();
+                        };
+                        results.entry(name_id).or_default().insert(v.clone());
                     }
                 }
                 results
@@ -91,13 +91,16 @@ fn check<'c>(dp: &mut Index<'c>, root: Rc<Names<'c>>, ver: &semver::Version) -> 
             .as_ref()
             .map(|map| {
                 let mut results: HashMap<
-                    InternedString,
+                    usize,
                     BTreeSet<semver::Version>,
                     rustc_hash::FxBuildHasher,
                 > = HashMap::default();
                 for v in map.iter() {
+                    let Some(name_id) = dp.crates.get_index_of(&v.name()) else {
+                        return HashMap::default();
+                    };
                     results
-                        .entry(v.name())
+                        .entry(name_id)
                         .or_default()
                         .insert(v.version().clone());
                 }

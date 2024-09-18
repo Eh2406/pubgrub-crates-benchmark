@@ -21,9 +21,9 @@ impl<'a> Registry for crate::Index<'a> {
         kind: QueryKind,
         f: &mut dyn FnMut(IndexSummary),
     ) -> Poll<CargoResult<()>> {
-        if let Some(by_name) = self.crates.get(&dep.package_name()) {
+        if let Some((name_id, _, by_name)) = self.crates.get_full(&dep.package_name()) {
             if let Some(past_result) = &self.past_result {
-                for past_ver in past_result.get(&dep.package_name()).into_iter().flatten() {
+                for past_ver in past_result.get(&name_id).into_iter().flatten() {
                     if let Some((_, summary)) = by_name.get(past_ver) {
                         if dep.matches(&summary) {
                             self.dependencies

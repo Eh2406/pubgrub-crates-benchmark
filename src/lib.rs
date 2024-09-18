@@ -48,7 +48,7 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 const TIME_MAKE_FILE: f32 = 40.0;
 const TIME_CUT_OFF: f32 = TIME_MAKE_FILE * 4.0;
 
-type IndexMapLookup = HashMap<
+type IndexMapLookup = indexmap::IndexMap<
     InternedString,
     BTreeMap<semver::Version, (index_data::Version, Summary)>,
     rustc_hash::FxBuildHasher,
@@ -57,8 +57,7 @@ type IndexMapLookup = HashMap<
 #[derive(Clone)]
 pub struct Index<'c> {
     crates: &'c IndexMapLookup,
-    past_result:
-        Option<HashMap<InternedString, BTreeSet<semver::Version>, rustc_hash::FxBuildHasher>>,
+    past_result: Option<HashMap<usize, BTreeSet<semver::Version>, rustc_hash::FxBuildHasher>>,
     dependencies: RefCell<HashSet<(InternedString, semver::Version), rustc_hash::FxBuildHasher>>,
     pubgrub_dependencies:
         RefCell<HashSet<(Rc<Names<'c>>, semver::Version), rustc_hash::FxBuildHasher>>,
@@ -171,48 +170,43 @@ impl<'c> Index<'c> {
         file.flush().unwrap();
     }
 
-    fn get_versions<Q>(&self, name: &Q) -> impl Iterator<Item = &semver::Version> + '_
-    where
-        Q: ?Sized + Hash + Eq,
-        InternedString: std::borrow::Borrow<Q>,
-    {
+    fn get_versions(&self, name: usize) -> impl Iterator<Item = &semver::Version> + '_ {
         if let Some(past) = self.past_result.as_ref() {
-            let data = self.crates.get(name);
+            let data = self.crates.get_index(name);
             Either::Left(
-                past.get(name)
+                past.get(&name)
                     .into_iter()
                     .flat_map(|m| m.iter())
                     .rev()
-                    .filter(move |v| data.map_or(false, |d| d.contains_key(v))),
+                    .filter(move |v| data.map_or(false, |d| d.1.contains_key(v))),
             )
         } else {
             Either::Right(
                 self.crates
-                    .get(name)
+                    .get_index(name)
                     .into_iter()
-                    .flat_map(|m| m.keys())
+                    .flat_map(|m| m.1.keys())
                     .rev(),
             )
         }
     }
 
-    fn get_version<Q>(&self, name: &Q, ver: &semver::Version) -> Option<&'c index_data::Version>
-    where
-        Q: ?Sized + Hash + Eq,
-        InternedString: std::borrow::Borrow<Q>,
-    {
+    fn get_version(&self, name: usize, ver: &semver::Version) -> Option<&'c index_data::Version> {
         if let Some(past) = &self.past_result {
-            past.get(name)?.get(ver)?;
+            past.get(&name)?.get(ver)?;
         }
-        self.crates.get(name)?.get(ver).map(|v| &v.0)
+        self.crates.get_index(name)?.1.get(ver).map(|v| &v.0)
     }
 
     fn only_one_compatibility_range_in_data(
         &self,
         dep: &'c index_data::Dependency,
     ) -> Option<SemverCompatibility> {
+        let Some(name_id) = self.crates.get_index_of(dep.package_name.as_str()) else {
+            return Some(SemverCompatibility::Patch(0));
+        };
         let mut iter = self
-            .get_versions(dep.package_name.as_str())
+            .get_versions(name_id)
             .filter(|v| dep.req.matches(v))
             .map(|v| SemverCompatibility::from(v));
         let first = iter.next().unwrap_or(SemverCompatibility::Patch(0));
@@ -224,16 +218,12 @@ impl<'c> Index<'c> {
         }
     }
 
-    fn count_wide_matches<Q>(
+    fn count_wide_matches(
         &self,
         range: &RcSemverPubgrub,
-        package: &Q,
+        package: usize,
         req: &&semver::VersionReq,
-    ) -> usize
-    where
-        Q: ?Sized + Hash + Eq,
-        InternedString: std::borrow::Borrow<Q>,
-    {
+    ) -> usize {
         if range.inner.only_one_compatibility_range().is_some() {
             1
         } else {
@@ -248,11 +238,7 @@ impl<'c> Index<'c> {
         }
     }
 
-    fn count_matches<Q>(&self, range: &RcSemverPubgrub, package: &Q) -> usize
-    where
-        Q: ?Sized + Hash + Eq,
-        InternedString: std::borrow::Borrow<Q>,
-    {
+    fn count_matches(&self, range: &RcSemverPubgrub, package: usize) -> usize {
         if range.inner.as_singleton().is_some() {
             1
         } else {
@@ -361,7 +347,8 @@ impl<'c> Index<'c> {
         if checked.insert(id) {
             let (version, _feats, deps) = &vertions[&id];
 
-            let index_ver = self.get_version(id.0, version).unwrap();
+            let name_id = self.crates.get_index_of(id.0).unwrap();
+            let index_ver = self.get_version(name_id, version).unwrap();
             for dep in index_ver.deps.iter() {
                 if dep.kind == DependencyKind::Dev {
                     continue;
@@ -466,7 +453,10 @@ impl<'c> Index<'c> {
 
         let mut links: BTreeSet<_> = BTreeSet::new();
         for ((name, _), (ver, feats, deps, default_feature)) in vertions.iter() {
-            let index_ver = self.get_version(*name, ver).unwrap();
+            let Some(name_id) = self.crates.get_index_of(*name) else {
+                return false;
+            };
+            let index_ver = self.get_version(name_id, ver).unwrap();
             if index_ver.yanked {
                 return false;
             }
@@ -566,8 +556,11 @@ impl<'c> DependencyProvider for Index<'c> {
             Names::Wide(_, req, _, _)
             | Names::WideFeatures(_, req, _, _, _)
             | Names::WideDefaultFeatures(_, req, _, _) => {
+                let Some(name_id) = self.crates.get_index_of(package.crate_()) else {
+                    return Ok(None);
+                };
                 // one version for each bucket that match req
-                self.get_versions(&*package.crate_())
+                self.get_versions(name_id)
                     .filter(|v| req.matches(v))
                     .map(|v| SemverCompatibility::from(v))
                     .map(|v| v.canonical())
@@ -575,10 +568,15 @@ impl<'c> DependencyProvider for Index<'c> {
             }
             Names::Bucket(_, _, _)
             | Names::BucketFeatures(_, _, _)
-            | Names::BucketDefaultFeatures(_, _) => self
-                .get_versions(&*package.crate_())
-                .find(|v| range.contains(v))
-                .cloned(),
+            | Names::BucketDefaultFeatures(_, _) => {
+                let Some(name_id) = self.crates.get_index_of(package.crate_()) else {
+                    return Ok(None);
+                };
+
+                self.get_versions(name_id)
+                    .find(|v| range.contains(v))
+                    .cloned()
+            }
         })
     }
 
@@ -597,9 +595,17 @@ impl<'c> DependencyProvider for Index<'c> {
             }
 
             Names::Wide(_, req, _, _) | Names::WideFeatures(_, req, _, _, _) => {
-                self.count_wide_matches(range, package.crate_(), req)
+                let Some(name_id) = self.crates.get_index_of(package.crate_()) else {
+                    return Reverse(0);
+                };
+                self.count_wide_matches(range, name_id, req)
             }
-            _ => self.count_matches(range, package.crate_()),
+            _ => {
+                let Some(name_id) = self.crates.get_index_of(package.crate_()) else {
+                    return Reverse(0);
+                };
+                self.count_matches(range, name_id)
+            }
         })
     }
 
@@ -613,7 +619,10 @@ impl<'c> DependencyProvider for Index<'c> {
             .insert((package.clone(), version.clone()));
         Ok(match &**package {
             &Names::Bucket(name, _major, all_features) => {
-                let Some(index_ver) = self.get_version(name, version) else {
+                let Some(name_id) = self.crates.get_index_of(name) else {
+                    return Err(SomeError);
+                };
+                let Some(index_ver) = self.get_version(name_id, version) else {
                     return Err(SomeError);
                 };
                 self.dependencies
@@ -676,7 +685,10 @@ impl<'c> DependencyProvider for Index<'c> {
                 Dependencies::Available(deps)
             }
             Names::BucketFeatures(name, _major, FeatureNamespace::Feat(feat)) => {
-                let Some(index_ver) = self.get_version(*name, version) else {
+                let Some(name_id) = self.crates.get_index_of(*name) else {
+                    return Err(SomeError);
+                };
+                let Some(index_ver) = self.get_version(name_id, version) else {
                     return Err(SomeError);
                 };
                 self.dependencies
@@ -744,7 +756,10 @@ impl<'c> DependencyProvider for Index<'c> {
                 }
             }
             Names::BucketDefaultFeatures(name, _major) => {
-                let Some(index_ver) = self.get_version(*name, version) else {
+                let Some(name_id) = self.crates.get_index_of(*name) else {
+                    return Err(SomeError);
+                };
+                let Some(index_ver) = self.get_version(name_id, version) else {
                     return Err(SomeError);
                 };
                 self.dependencies
@@ -772,7 +787,10 @@ impl<'c> DependencyProvider for Index<'c> {
                 Dependencies::Available(deps)
             }
             Names::BucketFeatures(name, _major, FeatureNamespace::Dep(feat)) => {
-                let Some(index_ver) = self.get_version(*name, version) else {
+                let Some(name_id) = self.crates.get_index_of(*name) else {
+                    return Err(SomeError);
+                };
+                let Some(index_ver) = self.get_version(name_id, version) else {
                     return Err(SomeError);
                 };
                 if index_ver.yanked {
@@ -1005,16 +1023,16 @@ pub fn process_carte_version<'c>(
             .as_ref()
             .map(|map| {
                 let mut results: HashMap<
-                    InternedString,
+                    usize,
                     BTreeSet<semver::Version>,
                     rustc_hash::FxBuildHasher,
                 > = HashMap::default();
                 for (k, v) in map.iter() {
                     if k.is_real() {
-                        results
-                            .entry(k.crate_().into())
-                            .or_default()
-                            .insert(v.clone());
+                        let Some(name_id) = dp.crates.get_index_of(k.crate_()) else {
+                            return HashMap::default();
+                        };
+                        results.entry(name_id).or_default().insert(v.clone());
                     }
                 }
                 results
@@ -1043,13 +1061,16 @@ pub fn process_carte_version<'c>(
             .as_ref()
             .map(|map| {
                 let mut results: HashMap<
-                    InternedString,
+                    usize,
                     BTreeSet<semver::Version>,
                     rustc_hash::FxBuildHasher,
                 > = HashMap::default();
                 for v in map.iter() {
+                    let Some(name_id) = dp.crates.get_index_of(&v.name()) else {
+                        return HashMap::default();
+                    };
                     results
-                        .entry(v.name())
+                        .entry(name_id)
                         .or_default()
                         .insert(v.version().clone());
                 }
