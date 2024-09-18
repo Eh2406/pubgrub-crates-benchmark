@@ -7,14 +7,14 @@
     },
     "Bucket:b@0.0.1/dep:a": {
         "0.0.1": Ok({
-            "Bucket:a@0.0.1": (
-                normal: [
-                    (Included("0.0.1"), Excluded("0.0.2")),
-                ],
-            ),
             "Bucket:b@0.0.1": (
                 normal: [
                     (Included("0.0.1"), Included("0.0.1")),
+                ],
+            ),
+            "Bucket:a@0.0.1": (
+                normal: [
+                    (Included("0.0.1"), Excluded("0.0.2")),
                 ],
             ),
         }),
@@ -71,12 +71,12 @@
     },
     "Bucket:test-p@0.0.1/All-FEATURES": {
         "0.0.1": Ok({
-            "Bucket:c@0.0.1": (
+            "Bucket:c@0.0.1/perf-literal": (
                 normal: [
                     (Included("0.0.1"), Excluded("0.0.2")),
                 ],
             ),
-            "Bucket:c@0.0.1/perf-literal": (
+            "Bucket:c@0.0.1": (
                 normal: [
                     (Included("0.0.1"), Excluded("0.0.2")),
                 ],

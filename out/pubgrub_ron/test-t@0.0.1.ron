@@ -13,12 +13,12 @@
     },
     "Bucket:burn-core@0.0.1/default=true": {
         "0.0.1": Ok({
-            "Bucket:burn-core@0.0.1/default": (
+            "Bucket:burn-core@0.0.1": (
                 normal: [
                     (Included("0.0.1"), Included("0.0.1")),
                 ],
             ),
-            "Bucket:burn-core@0.0.1": (
+            "Bucket:burn-core@0.0.1/default": (
                 normal: [
                     (Included("0.0.1"), Included("0.0.1")),
                 ],
@@ -27,12 +27,12 @@
     },
     "Bucket:test-t@0.0.1/All-FEATURES": {
         "0.0.1": Ok({
-            "Bucket:burn-core@0.0.1/default=true": (
+            "Bucket:burn-core@0.0.1": (
                 normal: [
                     (Included("0.0.1"), Excluded("0.0.2")),
                 ],
             ),
-            "Bucket:burn-core@0.0.1": (
+            "Bucket:burn-core@0.0.1/default=true": (
                 normal: [
                     (Included("0.0.1"), Excluded("0.0.2")),
                 ],

@@ -4,14 +4,14 @@
     },
     "Bucket:async-global-executor@0.0.1/dep:io-lifetimes": {
         "0.0.1": Ok({
-            "Bucket:io-lifetimes@0.0.1": (
-                normal: [
-                    (Unbounded, Unbounded),
-                ],
-            ),
             "Bucket:async-global-executor@0.0.1": (
                 normal: [
                     (Included("0.0.1"), Included("0.0.1")),
+                ],
+            ),
+            "Bucket:io-lifetimes@0.0.1": (
+                normal: [
+                    (Unbounded, Unbounded),
                 ],
             ),
         }),
@@ -49,12 +49,12 @@
     },
     "Bucket:test-cyclical-optional-dependencies@0.0.1/All-FEATURES": {
         "0.0.1": Ok({
-            "Bucket:async-global-executor@0.0.1/io-lifetimes": (
+            "Bucket:async-global-executor@0.0.1": (
                 normal: [
                     (Unbounded, Unbounded),
                 ],
             ),
-            "Bucket:async-global-executor@0.0.1": (
+            "Bucket:async-global-executor@0.0.1/io-lifetimes": (
                 normal: [
                     (Unbounded, Unbounded),
                 ],
@@ -77,7 +77,7 @@
     },
     "Bucket:test-cyclical-optional-dependencies@0.0.1/dep:async-global-executor": {
         "0.0.1": Ok({
-            "Bucket:async-global-executor@0.0.1/io-lifetimes": (
+            "Bucket:async-global-executor@0.0.1": (
                 normal: [
                     (Unbounded, Unbounded),
                 ],
@@ -87,7 +87,7 @@
                     (Included("0.0.1"), Included("0.0.1")),
                 ],
             ),
-            "Bucket:async-global-executor@0.0.1": (
+            "Bucket:async-global-executor@0.0.1/io-lifetimes": (
                 normal: [
                     (Unbounded, Unbounded),
                 ],

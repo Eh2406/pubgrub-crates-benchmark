@@ -27,12 +27,12 @@
     },
     "Bucket:rustix@0.38.x/default=true": {
         "0.38.34": Ok({
-            "Bucket:rustix@0.38.x/default": (
+            "Bucket:rustix@0.38.x": (
                 normal: [
                     (Included("0.38.34"), Included("0.38.34")),
                 ],
             ),
-            "Bucket:rustix@0.38.x": (
+            "Bucket:rustix@0.38.x/default": (
                 normal: [
                     (Included("0.38.34"), Included("0.38.34")),
                 ],

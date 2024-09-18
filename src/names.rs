@@ -49,16 +49,23 @@ impl serde::Serialize for FeatureNamespace<'_> {
 
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub enum Names<'c> {
-    Bucket(&'c str, SemverCompatibility, bool),
-    BucketFeatures(&'c str, SemverCompatibility, FeatureNamespace<'c>),
-    BucketDefaultFeatures(&'c str, SemverCompatibility),
+    Bucket(Option<usize>, &'c str, SemverCompatibility, bool),
+    BucketFeatures(
+        Option<usize>,
+        &'c str,
+        SemverCompatibility,
+        FeatureNamespace<'c>,
+    ),
+    BucketDefaultFeatures(Option<usize>, &'c str, SemverCompatibility),
     Wide(
+        Option<usize>,
         &'c str,
         &'c semver::VersionReq,
         &'c str,
         SemverCompatibility,
     ),
     WideFeatures(
+        Option<usize>,
         &'c str,
         &'c semver::VersionReq,
         &'c str,
@@ -66,6 +73,7 @@ pub enum Names<'c> {
         FeatureNamespace<'c>,
     ),
     WideDefaultFeatures(
+        Option<usize>,
         &'c str,
         &'c semver::VersionReq,
         &'c str,
@@ -75,19 +83,21 @@ pub enum Names<'c> {
 }
 
 pub fn new_bucket<'c>(
+    name_id: Option<usize>,
     crate_: &'c str,
     compat: SemverCompatibility,
     all_features: bool,
 ) -> Rc<Names<'c>> {
-    Rc::new(Names::Bucket(crate_, compat, all_features))
+    Rc::new(Names::Bucket(name_id, crate_, compat, all_features))
 }
 pub fn new_wide<'c>(
+    name_id: Option<usize>,
     crate_: &'c str,
     req: &'c semver::VersionReq,
     from: &'c str,
     compat: SemverCompatibility,
 ) -> Rc<Names<'c>> {
-    Rc::new(Names::Wide(crate_, req, from, compat))
+    Rc::new(Names::Wide(name_id, crate_, req, from, compat))
 }
 pub fn new_links<'c>(crate_: &'c str) -> Rc<Names<'c>> {
     Rc::new(Names::Links(crate_))
@@ -97,23 +107,23 @@ impl<'c> Ord for Names<'c> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         {
             match &self {
-                Names::Bucket(c, _, _)
-                | Names::BucketFeatures(c, _, _)
-                | Names::BucketDefaultFeatures(c, _)
-                | Names::Wide(c, _, _, _)
-                | Names::WideFeatures(c, _, _, _, _)
-                | Names::WideDefaultFeatures(c, _, _, _)
+                Names::Bucket(_, c, _, _)
+                | Names::BucketFeatures(_, c, _, _)
+                | Names::BucketDefaultFeatures(_, c, _)
+                | Names::Wide(_, c, _, _, _)
+                | Names::WideFeatures(_, c, _, _, _, _)
+                | Names::WideDefaultFeatures(_, c, _, _, _)
                 | Names::Links(c) => *c,
             }
         }
         .cmp({
             match &other {
-                Names::Bucket(c, _, _)
-                | Names::BucketFeatures(c, _, _)
-                | Names::BucketDefaultFeatures(c, _)
-                | Names::Wide(c, _, _, _)
-                | Names::WideFeatures(c, _, _, _, _)
-                | Names::WideDefaultFeatures(c, _, _, _)
+                Names::Bucket(_, c, _, _)
+                | Names::BucketFeatures(_, c, _, _)
+                | Names::BucketDefaultFeatures(_, c, _)
+                | Names::Wide(_, c, _, _, _)
+                | Names::WideFeatures(_, c, _, _, _, _)
+                | Names::WideDefaultFeatures(_, c, _, _, _)
                 | Names::Links(c) => *c,
             }
         })
@@ -133,33 +143,35 @@ impl<'c> Names<'c> {
     }
     pub fn crate_(&self) -> &'c str {
         match self {
-            Names::Bucket(c, _, _)
-            | Names::BucketFeatures(c, _, _)
-            | Names::BucketDefaultFeatures(c, _)
-            | Names::Wide(c, _, _, _)
-            | Names::WideFeatures(c, _, _, _, _)
-            | Names::WideDefaultFeatures(c, _, _, _) => *c,
+            Names::Bucket(_, c, _, _)
+            | Names::BucketFeatures(_, c, _, _)
+            | Names::BucketDefaultFeatures(_, c, _)
+            | Names::Wide(_, c, _, _, _)
+            | Names::WideFeatures(_, c, _, _, _, _)
+            | Names::WideDefaultFeatures(_, c, _, _, _) => *c,
             Names::Links(_) => panic!(),
         }
     }
     pub fn with_default_features(&self) -> Rc<Self> {
         use Names::*;
         Rc::new(match self {
-            Bucket(a, b, _) | BucketFeatures(a, b, _) => BucketDefaultFeatures(*a, *b),
-            Wide(a, b, c, d) | WideFeatures(a, b, c, d, _) => WideDefaultFeatures(*a, b, c, *d),
+            Bucket(i, a, b, _) | BucketFeatures(i, a, b, _) => BucketDefaultFeatures(*i, *a, *b),
+            Wide(i, a, b, c, d) | WideFeatures(i, a, b, c, d, _) => {
+                WideDefaultFeatures(*i, *a, b, c, *d)
+            }
             Links(_) => panic!(),
-            s @ BucketDefaultFeatures(_, _) | s @ WideDefaultFeatures(_, _, _, _) => s.clone(),
+            s @ BucketDefaultFeatures(_, _, _) | s @ WideDefaultFeatures(_, _, _, _, _) => s.clone(),
         })
     }
     pub fn with_features(&self, feat: FeatureNamespace<'c>) -> Rc<Self> {
         use Names::*;
         Rc::new(match self {
-            Bucket(a, b, _) | BucketFeatures(a, b, _) | BucketDefaultFeatures(a, b) => {
-                BucketFeatures(*a, *b, feat)
+            Bucket(i, a, b, _) | BucketFeatures(i, a, b, _) | BucketDefaultFeatures(i, a, b) => {
+                BucketFeatures(*i, *a, *b, feat)
             }
-            Wide(a, b, c, d) | WideFeatures(a, b, c, d, _) | WideDefaultFeatures(a, b, c, d) => {
-                WideFeatures(*a, b, c, *d, feat)
-            }
+            Wide(i, a, b, c, d)
+            | WideFeatures(i, a, b, c, d, _)
+            | WideDefaultFeatures(i, a, b, c, d) => WideFeatures(*i, *a, b, c, *d, feat),
             Links(_) => panic!(),
         })
     }
@@ -168,7 +180,7 @@ impl<'c> Names<'c> {
 impl<'c> std::fmt::Display for Names<'c> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Names::Bucket(n, m, a) => {
+            Names::Bucket(_, n, m, a) => {
                 f.write_str("Bucket:")?;
                 f.write_str(n)?;
                 f.write_str("@")?;
@@ -182,7 +194,7 @@ impl<'c> std::fmt::Display for Names<'c> {
                 }
                 Ok(())
             }
-            Names::BucketFeatures(n, m, feat) => {
+            Names::BucketFeatures(_, n, m, feat) => {
                 f.write_str("Bucket:")?;
                 f.write_str(n)?;
                 f.write_str("@")?;
@@ -194,7 +206,7 @@ impl<'c> std::fmt::Display for Names<'c> {
                 f.write_str("/")?;
                 feat.fmt(f)
             }
-            Names::BucketDefaultFeatures(n, m) => {
+            Names::BucketDefaultFeatures(_, n, m) => {
                 f.write_str("Bucket:")?;
                 f.write_str(n)?;
                 f.write_str("@")?;
@@ -205,7 +217,7 @@ impl<'c> std::fmt::Display for Names<'c> {
                 })?;
                 f.write_str("/default=true")
             }
-            Names::Wide(c, range, parent, parent_com) => {
+            Names::Wide(_, c, range, parent, parent_com) => {
                 f.write_str("Range:")?;
                 f.write_str(c)?;
                 f.write_str("(From:")?;
@@ -219,7 +231,7 @@ impl<'c> std::fmt::Display for Names<'c> {
                 f.write_str("):")?;
                 f.write_str(&range.to_string())
             }
-            Names::WideFeatures(c, range, parent, parent_com, feat) => {
+            Names::WideFeatures(_, c, range, parent, parent_com, feat) => {
                 f.write_str("Range:")?;
                 f.write_str(c)?;
                 f.write_str("(From:")?;
@@ -235,7 +247,7 @@ impl<'c> std::fmt::Display for Names<'c> {
                 f.write_str("/")?;
                 feat.fmt(f)
             }
-            Names::WideDefaultFeatures(c, range, parent, parent_com) => {
+            Names::WideDefaultFeatures(_, c, range, parent, parent_com) => {
                 f.write_str("Range:")?;
                 f.write_str(c)?;
                 f.write_str("(From:")?;

@@ -44,9 +44,9 @@
     },
     "Bucket:rust_decimal@1.x.y/default": {
         "1.35.0": Ok({
-            "Bucket:rust_decimal@1.x.y": (
+            "Bucket:borsh@1.x.y/std": (
                 normal: [
-                    (Included("1.35.0"), Included("1.35.0")),
+                    (Included("1.0.0"), Excluded("2.0.0")),
                 ],
             ),
             "Bucket:rust_decimal@1.x.y/dep:borsh": (
@@ -54,21 +54,21 @@
                     (Included("1.35.0"), Included("1.35.0")),
                 ],
             ),
-            "Bucket:borsh@1.x.y/std": (
+            "Bucket:rust_decimal@1.x.y": (
                 normal: [
-                    (Included("1.0.0"), Excluded("2.0.0")),
+                    (Included("1.35.0"), Included("1.35.0")),
                 ],
             ),
         }),
     },
     "Bucket:rust_decimal@1.x.y/default=true": {
         "1.35.0": Ok({
-            "Bucket:rust_decimal@1.x.y": (
+            "Bucket:rust_decimal@1.x.y/default": (
                 normal: [
                     (Included("1.35.0"), Included("1.35.0")),
                 ],
             ),
-            "Bucket:rust_decimal@1.x.y/default": (
+            "Bucket:rust_decimal@1.x.y": (
                 normal: [
                     (Included("1.35.0"), Included("1.35.0")),
                 ],
@@ -77,14 +77,14 @@
     },
     "Bucket:rust_decimal@1.x.y/dep:borsh": {
         "1.35.0": Ok({
-            "Bucket:rust_decimal@1.x.y": (
-                normal: [
-                    (Included("1.35.0"), Included("1.35.0")),
-                ],
-            ),
             "Bucket:borsh@1.x.y": (
                 normal: [
                     (Included("1.0.0"), Excluded("2.0.0")),
+                ],
+            ),
+            "Bucket:rust_decimal@1.x.y": (
+                normal: [
+                    (Included("1.35.0"), Included("1.35.0")),
                 ],
             ),
             "Bucket:borsh@1.x.y/borsh-derive": (

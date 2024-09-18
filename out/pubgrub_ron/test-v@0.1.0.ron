@@ -21,12 +21,12 @@
     },
     "Bucket:ureq@2.x.y/c": {
         "2.9.7": Ok({
-            "Bucket:ureq@2.x.y": (
+            "Bucket:ureq@2.x.y/dep:c": (
                 normal: [
                     (Included("2.9.7"), Included("2.9.7")),
                 ],
             ),
-            "Bucket:ureq@2.x.y/dep:c": (
+            "Bucket:ureq@2.x.y": (
                 normal: [
                     (Included("2.9.7"), Included("2.9.7")),
                 ],
