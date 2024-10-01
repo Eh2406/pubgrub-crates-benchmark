@@ -80,7 +80,7 @@ pub fn resolve<'c>(
     let Some((_, summary)) = pack.get(ver).cloned() else {
         bail!("No version found for package '{name}@{ver}'");
     };
-    let new_id = summary.package_id().with_source_id(registry_local());
+    let new_id = summary.package_id().with_source_id(other_registry_loc());
     let summary = summary.override_id(new_id);
     resolver::resolve(
         &[(summary, ResolveOpts::everything())],
@@ -125,21 +125,15 @@ impl TryFrom<&crate::index_data::Version> for Summary {
     }
 }
 
-fn registry_local() -> SourceId {
-    static SOME_LOCAL_PATH: OnceLock<SourceId> = OnceLock::new();
-    *SOME_LOCAL_PATH.get_or_init(|| {
-        SourceId::for_path(std::path::Path::new(if cfg!(windows) {
-            // why does this have to exist only on windows?
-            "C:\\"
-        } else {
-            "/some-local-path"
-        }))
-        .unwrap()
-    })
-}
-
 fn registry_loc() -> SourceId {
     static EXAMPLE_DOT_COM: OnceLock<SourceId> = OnceLock::new();
     *EXAMPLE_DOT_COM
         .get_or_init(|| SourceId::for_registry(&"https://example.com".into_url().unwrap()).unwrap())
+}
+
+fn other_registry_loc() -> SourceId {
+    static OTHER_EXAMPLE_DOT_COM: OnceLock<SourceId> = OnceLock::new();
+    *OTHER_EXAMPLE_DOT_COM.get_or_init(|| {
+        SourceId::for_registry(&"https://other.example.com".into_url().unwrap()).unwrap()
+    })
 }

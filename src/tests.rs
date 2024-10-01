@@ -149,7 +149,7 @@ fn named_from_files_pass_tests() {
         let start_time = std::time::Instant::now();
         let crates = crates_data_from_file(&case);
         let mut dp = Index::new(&crates);
-        let root = new_bucket(&name, (&ver).into(), true);
+        let root = new_bucket(name, (&ver).into(), true);
         if !check(&mut dp, root, &ver) {
             dp.make_index_ron_file();
             faild.push(file_name.to_string());
@@ -168,7 +168,7 @@ fn named_from_files_pass_without_vers() {
         let file_name = case.file_name().unwrap().to_string_lossy();
         let (name, ver) = case_from_file_name(&file_name);
         eprintln!("Running: {name} @ {ver}");
-        let root = new_bucket(&name, (&ver).into(), true);
+        let root = new_bucket(name, (&ver).into(), true);
         let start_time = std::time::Instant::now();
         let data = std::fs::read_to_string(&case).unwrap();
         let mut data: Vec<index_data::Version> = ron::de::from_str(&data).unwrap();

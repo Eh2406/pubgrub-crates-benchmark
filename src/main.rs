@@ -1,7 +1,7 @@
 use std::{sync::mpsc, thread::spawn, time::Instant};
 
 use benchmark_from_crates::{
-    index_data, process_carte_version, read_index::read_index, Index, Mode, OutPutSummery,
+    index_data, process_crate_version, read_index::read_index, Index, Mode, OutputSummary,
 };
 use clap::Parser;
 use indicatif::{ParallelProgressIterator as _, ProgressBar, ProgressFinish, ProgressStyle};
@@ -48,7 +48,7 @@ fn main() {
             .unwrap();
     let data = read_index(&index, create_filter, version_filter);
 
-    let (tx, rx) = mpsc::channel::<OutPutSummery>();
+    let (tx, rx) = mpsc::channel::<OutputSummary>();
 
     let file_handle = spawn(|| {
         let mut out_file = csv::Writer::from_path("out.csv").unwrap();
@@ -83,7 +83,7 @@ fn main() {
         .flat_map(|(c, v)| v.par_iter().map(|(v, _)| (c.clone(), v)))
         .progress_with(style)
         .map(|(crt, ver)| {
-            process_carte_version(&mut Index::new(&data), crt, ver.clone(), args.mode)
+            process_crate_version(&mut Index::new(&data), crt, ver.clone(), args.mode)
         })
         .for_each(move |csv_line| {
             let _ = tx.send(csv_line);
@@ -91,7 +91,7 @@ fn main() {
 
     let (pub_cpu_time, cargo_cpu_time, cargo_pub_lock_cpu_time, pub_cargo_lock_cpu_time, wall_time) =
         file_handle.join().unwrap();
-    println!("!!!!!!!!!! Timeings !!!!!!!!!!");
+    println!("!!!!!!!!!! Timings !!!!!!!!!!");
     let p = |n: &str, t: f32| {
         if t > 0.0 {
             println!("{n:>20} time: {:>8.2}s == {:>6.2}min", t, t / 60.0)

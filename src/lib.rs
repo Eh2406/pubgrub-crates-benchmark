@@ -932,12 +932,12 @@ impl Mode {
     }
 }
 
-pub fn process_carte_version<'c>(
-    dp: &mut Index<'c>,
+pub fn process_crate_version(
+    dp: &mut Index,
     crt: InternedString,
     ver: semver::Version,
     mode: Mode,
-) -> OutPutSummery {
+) -> OutputSummary {
     let root = new_bucket(crt.as_str(), (&ver).into(), true);
     dp.reset();
     let mut pub_cyclic_package_dependency = None;
@@ -1084,7 +1084,7 @@ pub fn process_carte_version<'c>(
         0
     };
 
-    OutPutSummery {
+    OutputSummary {
         name: crt,
         ver,
         time: pub_time,
@@ -1102,7 +1102,7 @@ pub fn process_carte_version<'c>(
 }
 
 #[derive(serde::Serialize)]
-pub struct OutPutSummery {
+pub struct OutputSummary {
     pub name: InternedString,
     pub ver: semver::Version,
     pub time: f32,
