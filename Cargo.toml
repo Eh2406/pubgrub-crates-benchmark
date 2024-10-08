@@ -6,7 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-indicatif = {version = "0.17.7", features = ["rayon"]}
 crates-index = { version="2", features=["git", "git-https", "parallel"] }
 rayon = "1.9"
 semver = { version = "1" , features=[ "serde" ] }
@@ -23,6 +22,7 @@ indexmap = "2.2.6"
 either = "1.13.0"
 clap = { version = "4.5.17", features = ["derive"] }
 rustc-hash = "2.0.0"
+ratatui = "0.28.1"
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 tikv-jemallocator = "0.5"
