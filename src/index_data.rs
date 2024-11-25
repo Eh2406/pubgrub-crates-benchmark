@@ -218,7 +218,7 @@ impl Version {
         }
     }
     pub(crate) fn without_a_feature(self, i: usize) -> Option<Self> {
-        if !self.features_raw.is_empty() {
+        if self.features_raw.len() > i {
             let features_raw: Intern<BTreeMap<InternedString, Intern<BTreeSet<InternedString>>>> =
                 Intern::new(
                     self.features_raw
@@ -274,7 +274,7 @@ impl Version {
         }
     }
     pub(crate) fn without_a_dep(self, i: usize) -> Option<Self> {
-        if !self.deps.deps.is_empty() {
+        if self.deps.deps.len() > i {
             Some(Self {
                 deps: DependencyList {
                     deps: self

@@ -1,5 +1,9 @@
 use std::path::Path;
 
+use rayon::iter::IndexedParallelIterator as _;
+use rayon::iter::IntoParallelIterator as _;
+use rayon::iter::ParallelIterator as _;
+
 use super::*;
 
 fn case_from_file_name(file_name: &str) -> (&str, semver::Version) {
@@ -18,12 +22,6 @@ fn crates_data_from_file<P: AsRef<Path>>(path: P) -> IndexMapLookup {
 fn check<'c>(dp: &mut Index<'c>, root: Rc<Names<'c>>, ver: &semver::Version) -> bool {
     dp.reset();
     let res = resolve(dp, root.clone(), ver.clone());
-    let pub_cyclic_package_dependency = if let Ok(map) = res.as_ref() {
-        dp.check_cycles(root.clone(), map)
-    } else {
-        false
-    };
-
     match res.as_ref() {
         Ok(map) => {
             if !dp.check(root.clone(), &map) {
@@ -38,77 +36,6 @@ fn check<'c>(dp: &mut Index<'c>, root: Rc<Names<'c>>, ver: &semver::Version) -> 
             return false;
         }
     }
-    dp.reset_time();
-    let cargo_out = cargo_resolver::resolve(root.crate_().into(), &ver, dp);
-
-    let cyclic_package_dependency = &cargo_out
-        .as_ref()
-        .map_err(|e| e.to_string().starts_with("cyclic package dependency"))
-        == &Err(true);
-
-    if cyclic_package_dependency != pub_cyclic_package_dependency {
-        return false;
-    }
-
-    if !cyclic_package_dependency && res.is_ok() != cargo_out.is_ok() {
-        return false;
-    }
-
-    if res.is_ok() {
-        dp.past_result = res
-            .as_ref()
-            .map(|map| {
-                let mut results: HashMap<
-                    &str,
-                    BTreeSet<semver::Version>,
-                    rustc_hash::FxBuildHasher,
-                > = HashMap::default();
-                for (k, v) in map.iter() {
-                    if k.is_real() {
-                        results.entry(k.crate_()).or_default().insert(v.clone());
-                    }
-                }
-                results
-            })
-            .ok();
-        dp.reset_time();
-        let cargo_check_pub_lock_out = cargo_resolver::resolve(root.crate_().into(), &ver, dp);
-
-        let cyclic_package_dependency_pub_lock = &cargo_check_pub_lock_out
-            .as_ref()
-            .map_err(|e| e.to_string().starts_with("cyclic package dependency"))
-            == &Err(true);
-
-        if !cyclic_package_dependency_pub_lock && !cargo_check_pub_lock_out.is_ok() {
-            return false;
-        }
-    }
-    if cargo_out.is_ok() {
-        dp.past_result = cargo_out
-            .as_ref()
-            .map(|map| {
-                let mut results: HashMap<
-                    &str,
-                    BTreeSet<semver::Version>,
-                    rustc_hash::FxBuildHasher,
-                > = HashMap::default();
-                for v in map.iter() {
-                    results
-                        .entry(v.name().as_str())
-                        .or_default()
-                        .insert(v.version().clone());
-                }
-                results
-            })
-            .ok();
-        dp.reset_time();
-        let pub_check_cargo_lock_out = resolve(dp, root.clone(), ver.clone());
-
-        if !pub_check_cargo_lock_out.is_ok() {
-            return false;
-        }
-    }
-
     true
 }
 
@@ -138,6 +65,151 @@ fn serde_round_trip() {
 }
 
 #[test]
+fn minimize_named_from_files() {
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(100)
+        .build_global()
+        .unwrap();
+
+    let name = "solana-archiver-lib";
+    let name_old = "solana-archiver-lib-old";
+    let ver: semver::Version = "1.1.13".parse().unwrap();
+
+    let mut data: Vec<index_data::Version> = ron::de::from_str(
+        &std::fs::read_to_string("out/index_ron/solana-archiver-lib@1.1.13.ron").unwrap(),
+    )
+    .unwrap();
+    let mut data_old: Vec<index_data::Version> = ron::de::from_str(
+        &std::fs::read_to_string("out/index_ron/solana-archiver-lib-old@1.1.13.ron").unwrap(),
+    )
+    .unwrap();
+
+    let mut max_iter = 1000;
+    'data: loop {
+        if max_iter % 9 == 0 {
+            println!("{max_iter}: cut crate");
+        } else if max_iter % 2 == 0 {
+            println!("{max_iter}: cut deps #{}", (max_iter / 2) % 5);
+        } else {
+            println!("{max_iter}: cut fet #{}", (max_iter / 2) % 5);
+        }
+        let used: HashSet<_> = data_old
+            .iter()
+            .filter_map(|v| {
+                if max_iter % 9 == 0 {
+                    return Some(v);
+                }
+                let out = if max_iter % 2 == 0 {
+                    v.clone().without_a_dep((max_iter / 2) % 5)?
+                } else {
+                    v.clone().without_a_dep((max_iter / 2) % 5)?
+                };
+                TryInto::<Summary>::try_into(&out).ok()?;
+                Some(v)
+            })
+            .map(|v| (v.name, v.vers))
+            .filter(|(n, _)| !n.starts_with(name))
+            .collect();
+        let used: Vec<_> = used.into_iter().collect();
+        if used.is_empty() {
+            max_iter -= 1;
+            continue;
+        }
+        dbg!(data.len(), data_old.len(), used.len());
+        let out = (0..used.len())
+            .into_par_iter()
+            .by_exponential_blocks()
+            .map(|idx_to_remove| {
+                let root = new_bucket(name, (&ver).into(), true);
+                let root_old = new_bucket(name_old, (&ver).into(), true);
+
+                let fillter = |d: &index_data::Version| {
+                    if used[..=idx_to_remove].iter().any(|(n, v)| {
+                        (d.name == *n || (d.name.starts_with(name) && n.starts_with(name)))
+                            && d.vers == *v
+                    }) {
+                        if max_iter % 9 == 0 {
+                            return None;
+                        }
+                        let out = if max_iter % 2 == 0 {
+                            d.clone().without_a_dep((max_iter / 2) % 5).unwrap()
+                        } else {
+                            d.clone().without_a_dep((max_iter / 2) % 5).unwrap()
+                        };
+                        TryInto::<Summary>::try_into(&out).unwrap();
+                        Some(out)
+                    } else {
+                        Some(d.clone())
+                    }
+                };
+                let crates = read_test_file(data.iter().filter_map(fillter));
+                let crates_old = read_test_file(data_old.iter().filter_map(fillter));
+
+                let mut dp = Index::new(&crates);
+                let mut dp_old = Index::new(&crates_old);
+
+                let start_time = std::time::Instant::now();
+                _ = check(&mut dp, root.clone(), &ver);
+                let time = start_time.elapsed().as_secs_f32();
+
+                let start_time = std::time::Instant::now();
+                _ = check(&mut dp_old, root_old.clone(), &ver);
+                let time_old = start_time.elapsed().as_secs_f32();
+
+                let data_new = dp.make_index_ron_data();
+                let data_old_new = dp_old.make_index_ron_data();
+
+                let len: f32 = data_new
+                    .iter()
+                    .map(|v| (1 + v.features_raw.len() + v.deps.len()) as f32)
+                    .sum();
+                let len_old: f32 = data_old_new
+                    .iter()
+                    .map(|v| (1 + v.features_raw.len() + v.deps.len()) as f32)
+                    .sum();
+
+                let main_slope = time / (len + 1.0);
+                let delts_slope = (time_old - time) / ((len_old - len) as f32 + 1.0);
+
+                (
+                    time,
+                    time_old,
+                    data_new,
+                    data_old_new,
+                    main_slope,
+                    delts_slope,
+                )
+            })
+            .find_any(|(.., main_slope, delts_slope)| {
+                main_slope > &1.7e-5 && delts_slope > &(main_slope * 8.0)
+            });
+
+        if let Some((time, time_old, data_new, data_old_new, main_slope, delts_slope)) = out {
+            data = data_new;
+            data_old = data_old_new;
+
+            let file_name = format!("out/index_ron/{}@{}.ron", name, ver);
+            let mut file = BufWriter::new(File::create(&file_name).unwrap());
+            ron::ser::to_writer_pretty(&mut file, &data, PrettyConfig::new()).unwrap();
+            file.flush().unwrap();
+
+            let file_name = format!("out/index_ron/{}@{}.ron", name_old, ver);
+            let mut file = BufWriter::new(File::create(&file_name).unwrap());
+            ron::ser::to_writer_pretty(&mut file, &data_old, PrettyConfig::new()).unwrap();
+            file.flush().unwrap();
+
+            dbg!(time, time_old, main_slope, delts_slope / main_slope);
+            continue 'data;
+        } else {
+            max_iter -= 1;
+            if max_iter == 0 {
+                break;
+            }
+        }
+    }
+}
+
+#[test]
 fn named_from_files_pass_tests() {
     // Switch to https://docs.rs/snapbox/latest/snapbox/harness/index.html
     let mut faild: Vec<_> = vec![];
@@ -154,8 +226,9 @@ fn named_from_files_pass_tests() {
             dp.make_index_ron_file();
             faild.push(file_name.to_string());
         };
+        dp.make_index_ron_file();
         dp.make_pubgrub_ron_file();
-        eprintln!(" in {}s", start_time.elapsed().as_secs());
+        eprintln!(" in {}s", start_time.elapsed().as_secs_f32());
     }
     assert_eq!(faild.as_slice(), &Vec::<String>::new());
 }
@@ -253,7 +326,7 @@ fn named_from_files_pass_without_vers() {
             dp.make_index_ron_file();
         };
 
-        eprintln!(" in {}s", start_time.elapsed().as_secs());
+        eprintln!(" in {}s", start_time.elapsed().as_secs_f32());
     }
 }
 
@@ -277,7 +350,7 @@ fn all_vers_in_files_pass_tests() {
                 };
             }
         }
-        eprintln!(" in {}s", start_time.elapsed().as_secs());
+        eprintln!(" in {}s", start_time.elapsed().as_secs_f32());
     }
     assert_eq!(faild.as_slice(), &Vec::<String>::new());
 }

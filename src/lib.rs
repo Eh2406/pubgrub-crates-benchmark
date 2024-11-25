@@ -600,9 +600,28 @@ impl<'c> DependencyProvider for Index<'c> {
             }
 
             Names::Wide(_, req, _, _) | Names::WideFeatures(_, req, _, _, _) => {
+                for version in self.get_versions(package.crate_()).filter(|&v| req.matches(v)) {
+                    let Some(index_ver) = self.get_version(package.crate_(), version) else {
+                        continue;
+                    };
+                    self.dependencies
+                        .borrow_mut()
+                        .insert((index_ver.name, version.clone()));
+                }
                 self.count_wide_matches(range, package.crate_(), req)
             }
-            _ => self.count_matches(range, package.crate_()),
+            _ => {
+                for version in self.get_versions(package.crate_()).filter(|v| range.contains(v)) {
+                    let Some(index_ver) = self.get_version(package.crate_(), version) else {
+                        continue;
+                    };
+                    self.dependencies
+                        .borrow_mut()
+                        .insert((index_ver.name, version.clone()));
+                }
+
+                self.count_matches(range, package.crate_())
+            }
         })
     }
 
