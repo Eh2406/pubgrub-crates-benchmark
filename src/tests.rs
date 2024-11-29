@@ -271,8 +271,9 @@ fn all_vers_in_files_pass_tests() {
         let crates = crates_data_from_file(&case);
         let mut dp = Index::new(&crates);
         for (name, vers) in &crates {
+            let name = name.as_interned_string();
             for ver in vers.keys() {
-                let root = new_bucket(*name, ver.into(), true);
+                let root = new_bucket(name, ver.into(), true);
                 if !check(&mut dp, root, ver) {
                     dp.make_index_ron_file();
                     faild.push(format!("{file_name}:{name}@{ver}"));

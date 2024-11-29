@@ -14,6 +14,8 @@ use cargo::util::interning::InternedString;
 use cargo::util::{CargoResult, IntoUrl};
 use itertools::Itertools;
 
+use crate::FastHashInternedString;
+
 impl<'a> Registry for crate::Index<'a> {
     fn query(
         &mut self,
@@ -21,7 +23,10 @@ impl<'a> Registry for crate::Index<'a> {
         kind: QueryKind,
         f: &mut dyn FnMut(IndexSummary),
     ) -> Poll<CargoResult<()>> {
-        if let Some(by_name) = self.crates.get(&dep.package_name()) {
+        if let Some(by_name) = self
+            .crates
+            .get(&FastHashInternedString::new(dep.package_name()))
+        {
             if let Some(past_result) = &self.past_result {
                 for past_ver in past_result
                     .get(dep.package_name().as_str())
@@ -74,7 +79,7 @@ pub fn resolve<'c>(
     ver: &semver::Version,
     dp: &mut crate::Index<'c>,
 ) -> CargoResult<Resolve> {
-    let Some(pack) = dp.crates.get(&name) else {
+    let Some(pack) = dp.crates.get(&FastHashInternedString::new(name)) else {
         bail!("No package found named '{name}'");
     };
     let Some((_, summary)) = pack.get(ver).cloned() else {

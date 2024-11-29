@@ -4,7 +4,7 @@ use cargo::{core::Summary, util::interning::InternedString};
 use crates_index::GitIndex;
 use rayon::iter::ParallelIterator;
 
-use crate::{index_data, IndexMapLookup};
+use crate::{index_data, FastHashInternedString, IndexMapLookup};
 
 pub fn read_index(
     index: &GitIndex,
@@ -15,7 +15,7 @@ pub fn read_index(
     let start = Instant::now();
     let crates: IndexMapLookup = index
         .crates_parallel()
-        .map(|c| c.unwrap())
+         .map(|c| c.unwrap())
         .filter(|crt| create_filter(crt.name()))
         .map(|crt| {
             let name: InternedString = crt.name().into();
@@ -30,7 +30,7 @@ pub fn read_index(
                     Some(((*v.vers).clone(), (v, s)))
                 })
                 .collect();
-            (name, ver_lookup)
+            (FastHashInternedString::new(name), ver_lookup)
         })
         .collect();
     println!(
@@ -46,7 +46,7 @@ pub fn read_test_file(iter: impl IntoIterator<Item = index_data::Version>) -> In
 
     for v in iter {
         let s = (&v).try_into().unwrap();
-        deps.entry(v.name.clone())
+        deps.entry(FastHashInternedString::new(v.name))
             .or_default()
             .insert((*v.vers).clone(), (v, s));
     }

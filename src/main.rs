@@ -80,8 +80,12 @@ fn main() {
 
     let to_prosses: Vec<_> = data
         .par_iter()
-        .filter(|(c, _)| args.filter.as_ref().map_or(true, |f| c.contains(f)))
-        .flat_map(|(c, v)| v.par_iter().map(|(v, _)| (c.clone(), v)))
+        .filter(|(c, _)| {
+            args.filter
+                .as_ref()
+                .map_or(true, |f| c.as_interned_string().contains(f))
+        })
+        .flat_map(|(c, v)| v.par_iter().map(|(v, _)| (c.as_interned_string(), v)))
         .collect();
 
     let template = "PubGrub: [Time: {elapsed}, Rate: {per_sec}, Remaining: {eta}] {wide_bar} {pos:>6}/{len:6}: {percent:>3}%";
