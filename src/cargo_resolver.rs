@@ -29,7 +29,7 @@ impl<'a> Registry for crate::Index<'a> {
         {
             if let Some(past_result) = &self.past_result {
                 for past_ver in past_result
-                    .get(dep.package_name().as_str())
+                    .get(&FastHashInternedString::new(dep.package_name()))
                     .into_iter()
                     .flatten()
                 {

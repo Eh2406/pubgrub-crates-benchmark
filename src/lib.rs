@@ -48,7 +48,7 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 const TIME_MAKE_FILE: f32 = 40.0;
 const TIME_CUT_OFF: f32 = TIME_MAKE_FILE * 4.0;
 
-#[derive(Hash, PartialEq, Eq)]
+#[derive(Hash, PartialEq, Eq, Clone, Copy)]
 pub struct FastHashInternedString {
     ptr: *const u8,
     len: usize,
@@ -81,8 +81,9 @@ type IndexMapLookup = HashMap<
 #[derive(Clone)]
 pub struct Index<'c> {
     crates: &'c IndexMapLookup,
-    past_result:
-        Option<HashMap<InternedString, BTreeSet<semver::Version>, rustc_hash::FxBuildHasher>>,
+    past_result: Option<
+        HashMap<FastHashInternedString, BTreeSet<semver::Version>, rustc_hash::FxBuildHasher>,
+    >,
     dependencies: RefCell<HashSet<(InternedString, semver::Version), rustc_hash::FxBuildHasher>>,
     pubgrub_dependencies:
         RefCell<HashSet<(Rc<Names<'c>>, semver::Version), rustc_hash::FxBuildHasher>>,
@@ -200,10 +201,11 @@ impl<'c> Index<'c> {
     }
 
     fn get_versions(&self, name: &InternedString) -> impl Iterator<Item = &semver::Version> + '_ {
+        let name = FastHashInternedString::new(*name);
         if let Some(past) = self.past_result.as_ref() {
-            let data = self.crates.get(&FastHashInternedString::new(*name));
+            let data = self.crates.get(&name);
             Either::Left(
-                past.get(name)
+                past.get(&name)
                     .into_iter()
                     .flat_map(|m| m.iter())
                     .rev()
@@ -212,7 +214,7 @@ impl<'c> Index<'c> {
         } else {
             Either::Right(
                 self.crates
-                    .get(&FastHashInternedString::new(*name))
+                    .get(&name)
                     .into_iter()
                     .flat_map(|m| m.keys())
                     .rev(),
@@ -224,15 +226,12 @@ impl<'c> Index<'c> {
         &self,
         name: &InternedString,
         ver: &semver::Version,
-    ) -> Option<&'c index_data::Version>
-where {
+    ) -> Option<&'c index_data::Version> {
+        let name = FastHashInternedString::new(*name);
         if let Some(past) = &self.past_result {
-            past.get(name)?.get(ver)?;
+            past.get(&name)?.get(ver)?;
         }
-        self.crates
-            .get(&FastHashInternedString::new(*name))?
-            .get(ver)
-            .map(|v| &v.0)
+        self.crates.get(&name)?.get(ver).map(|v| &v.0)
     }
 
     fn only_one_compatibility_range_in_data(
@@ -1030,13 +1029,16 @@ pub fn process_crate_version(
             .as_ref()
             .map(|map| {
                 let mut results: HashMap<
-                    InternedString,
+                    FastHashInternedString,
                     BTreeSet<semver::Version>,
                     rustc_hash::FxBuildHasher,
                 > = HashMap::default();
                 for (k, v) in map.iter() {
                     if k.is_real() {
-                        results.entry(k.crate_()).or_default().insert(v.clone());
+                        results
+                            .entry(FastHashInternedString::new(k.crate_()))
+                            .or_default()
+                            .insert(v.clone());
                     }
                 }
                 results
@@ -1065,13 +1067,13 @@ pub fn process_crate_version(
             .as_ref()
             .map(|map| {
                 let mut results: HashMap<
-                    InternedString,
+                    FastHashInternedString,
                     BTreeSet<semver::Version>,
                     rustc_hash::FxBuildHasher,
                 > = HashMap::default();
                 for v in map.iter() {
                     results
-                        .entry(v.name())
+                        .entry(FastHashInternedString::new(v.name()))
                         .or_default()
                         .insert(v.version().clone());
                 }

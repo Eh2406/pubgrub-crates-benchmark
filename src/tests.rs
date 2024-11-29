@@ -59,13 +59,16 @@ fn check<'c>(dp: &mut Index<'c>, root: Rc<Names<'c>>, ver: &semver::Version) -> 
             .as_ref()
             .map(|map| {
                 let mut results: HashMap<
-                    InternedString,
+                    FastHashInternedString,
                     BTreeSet<semver::Version>,
                     rustc_hash::FxBuildHasher,
                 > = HashMap::default();
                 for (k, v) in map.iter() {
                     if k.is_real() {
-                        results.entry(k.crate_()).or_default().insert(v.clone());
+                        results
+                            .entry(FastHashInternedString::new(k.crate_()))
+                            .or_default()
+                            .insert(v.clone());
                     }
                 }
                 results
@@ -88,13 +91,13 @@ fn check<'c>(dp: &mut Index<'c>, root: Rc<Names<'c>>, ver: &semver::Version) -> 
             .as_ref()
             .map(|map| {
                 let mut results: HashMap<
-                    InternedString,
+                    FastHashInternedString,
                     BTreeSet<semver::Version>,
                     rustc_hash::FxBuildHasher,
                 > = HashMap::default();
                 for v in map.iter() {
                     results
-                        .entry(v.name())
+                        .entry(FastHashInternedString::new(v.name()))
                         .or_default()
                         .insert(v.version().clone());
                 }
