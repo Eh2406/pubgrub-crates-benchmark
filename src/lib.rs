@@ -695,8 +695,8 @@ impl<'c> DependencyProvider for Index<'c> {
                 }
                 let mut deps = DependencyConstraints::default();
                 deps.insert(
-                    new_bucket(*name, version.into(), false),
-                    RcSemverPubgrub::singleton(version.clone()),
+                    new_bucket(name, version.into(), false),
+                    RcSemverPubgrub::full(),
                 );
 
                 if let Some(vals) = index_ver.features.get(*feat) {
@@ -763,8 +763,8 @@ impl<'c> DependencyProvider for Index<'c> {
                 }
                 let mut deps = DependencyConstraints::default();
                 deps.insert(
-                    new_bucket(*name, version.into(), false),
-                    RcSemverPubgrub::singleton(version.clone()),
+                    new_bucket(name, version.into(), false),
+                    RcSemverPubgrub::full(),
                 );
 
                 if index_ver.features.contains_key("default") {
@@ -788,8 +788,8 @@ impl<'c> DependencyProvider for Index<'c> {
                 }
                 let mut deps = DependencyConstraints::default();
                 deps.insert(
-                    new_bucket(*name, version.into(), false),
-                    RcSemverPubgrub::singleton(version.clone()),
+                    new_bucket(name, version.into(), false),
+                    RcSemverPubgrub::full(),
                 );
 
                 let mut found_name = false;
@@ -843,8 +843,8 @@ impl<'c> DependencyProvider for Index<'c> {
                 let range = RcSemverPubgrub::new(range.clone());
                 Dependencies::Available(DependencyConstraints::from_iter([
                     (
-                        new_wide(*name, req, *parent, parent_com.clone()),
-                        RcSemverPubgrub::singleton(version.clone()),
+                        new_wide(name, req, parent, parent_com.clone()),
+                        RcSemverPubgrub::full(),
                     ),
                     (
                         new_bucket(*name, compatibility, false).with_features(*feat),
@@ -861,8 +861,8 @@ impl<'c> DependencyProvider for Index<'c> {
 
                 Dependencies::Available(DependencyConstraints::from_iter([
                     (
-                        new_wide(*name, req, *parent, parent_com.clone()),
-                        RcSemverPubgrub::singleton(version.clone()),
+                        new_wide(name, req, parent, parent_com.clone()),
+                        RcSemverPubgrub::full(),
                     ),
                     (
                         new_bucket(*name, compatibility, false).with_default_features(),
@@ -871,6 +871,51 @@ impl<'c> DependencyProvider for Index<'c> {
                 ]))
             }
             Names::Links(_) => Dependencies::Available(DependencyConstraints::default()),
+        })
+    }
+
+    fn get_constraints(
+        &self,
+        package: &Rc<Names<'c>>,
+        version: &semver::Version,
+    ) -> Result<Dependencies<Self::P, Self::VS, Self::M>, Self::Err> {
+        Ok(match &**package {
+            // &Names::Bucket(name, _major, all_features) => {
+            //     let Some(index_ver) = self.get_version(name, version) else {
+            //         return Err(SomeError);
+            //     };
+            //     let mut deps = DependencyConstraints::default();
+            //
+            //     if !all_features {
+            //         for feat in index_ver.features.keys() {
+            //             deps_insert(
+            //                 &mut deps,
+            //                 package.with_features(FeatureNamespace::new(feat)),
+            //                 RcSemverPubgrub::singleton(version.clone()),
+            //             );
+            //         }
+            //     }
+            //     Dependencies::Available(deps)
+            // }
+            Names::BucketFeatures(name, _major, FeatureNamespace::Feat(_))
+            | Names::BucketDefaultFeatures(name, _major)
+            | Names::BucketFeatures(name, _major, FeatureNamespace::Dep(_)) => {
+                Dependencies::Available(DependencyConstraints::from_iter([(
+                    new_bucket(name, version.into(), false),
+                    RcSemverPubgrub::singleton(version.clone()),
+                )]))
+            }
+            Names::WideFeatures(name, req, parent, parent_com, _)
+            | Names::WideDefaultFeatures(name, req, parent, parent_com) => {
+                Dependencies::Available(DependencyConstraints::from_iter([(
+                    new_wide(name, req, parent, parent_com.clone()),
+                    RcSemverPubgrub::singleton(version.clone()),
+                )]))
+            }
+            // Names::Wide(_, _, _, _) | Names::Links(_) => {
+            //     Dependencies::Available(DependencyConstraints::default())
+            // }
+            _ => Dependencies::Available(DependencyConstraints::default()),
         })
     }
 
