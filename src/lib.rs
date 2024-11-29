@@ -70,7 +70,8 @@ impl FastHashInternedString {
     }
 
     pub fn as_interned_string(&self) -> InternedString {
-        InternedString::new(self.as_str())
+        // InternedString::new(self.as_str())
+        unsafe { std::mem::transmute(self.as_str()) }
     }
 }
 
@@ -166,7 +167,11 @@ impl<'c> Index<'c> {
             }
         }
 
-        let file_name = format!("out/pubgrub_ron/{}@{}.ron", name.0.crate_(), name.1);
+        let file_name = format!(
+            "out/pubgrub_ron/{}@{}.ron",
+            name.0.crate_().as_str(),
+            name.1
+        );
         let mut file = BufWriter::new(File::create(&file_name).unwrap());
         ron::ser::to_writer_pretty(&mut file, &dependency_provider, PrettyConfig::new()).unwrap();
         file.flush().unwrap();
@@ -200,14 +205,16 @@ impl<'c> Index<'c> {
 
         let out = self.make_index_ron_data();
 
-        let file_name = format!("out/index_ron/{}@{}.ron", name.0.crate_(), name.1);
+        let file_name = format!("out/index_ron/{}@{}.ron", name.0.crate_().as_str(), name.1);
         let mut file = BufWriter::new(File::create(&file_name).unwrap());
         ron::ser::to_writer_pretty(&mut file, &out, PrettyConfig::new()).unwrap();
         file.flush().unwrap();
     }
 
-    fn get_versions(&self, name: &InternedString) -> impl Iterator<Item = &semver::Version> + '_ {
-        let name = FastHashInternedString::new(*name);
+    fn get_versions(
+        &self,
+        name: FastHashInternedString,
+    ) -> impl Iterator<Item = &semver::Version> + '_ {
         if let Some(past) = self.past_result.as_ref() {
             let data = self.crates.get(&name);
             Either::Left(
@@ -230,10 +237,9 @@ impl<'c> Index<'c> {
 
     fn get_version(
         &self,
-        name: &InternedString,
+        name: FastHashInternedString,
         ver: &semver::Version,
     ) -> Option<&'c index_data::Version> {
-        let name = FastHashInternedString::new(*name);
         if let Some(past) = &self.past_result {
             past.get(&name)?.get(ver)?;
         }
@@ -245,7 +251,7 @@ impl<'c> Index<'c> {
         dep: &'c index_data::Dependency,
     ) -> Option<SemverCompatibility> {
         let mut iter = self
-            .get_versions(&dep.package_name)
+            .get_versions(FastHashInternedString::new(dep.package_name))
             .filter(|v| dep.req.matches(v))
             .map(|v| SemverCompatibility::from(v));
         let first = iter.next().unwrap_or(SemverCompatibility::Patch(0));
@@ -260,7 +266,7 @@ impl<'c> Index<'c> {
     fn count_wide_matches(
         &self,
         range: &RcSemverPubgrub,
-        package: &InternedString,
+        package: FastHashInternedString,
         req: &&semver::VersionReq,
     ) -> usize {
         if range.inner.only_one_compatibility_range().is_some() {
@@ -277,7 +283,7 @@ impl<'c> Index<'c> {
         }
     }
 
-    fn count_matches(&self, range: &RcSemverPubgrub, package: &InternedString) -> usize {
+    fn count_matches(&self, range: &RcSemverPubgrub, package: FastHashInternedString) -> usize {
         if range.inner.as_singleton().is_some() {
             1
         } else {
@@ -290,7 +296,7 @@ impl<'c> Index<'c> {
     fn from_dep(
         &self,
         dep: &'c index_data::Dependency,
-        from: InternedString,
+        from: FastHashInternedString,
         compat: impl Into<SemverCompatibility>,
     ) -> (Rc<Names<'c>>, RcSemverPubgrub) {
         if let Some(compat) = dep
@@ -299,12 +305,17 @@ impl<'c> Index<'c> {
             .or_else(|| self.only_one_compatibility_range_in_data(dep))
         {
             (
-                new_bucket(dep.package_name, compat, false),
+                new_bucket(FastHashInternedString::new(dep.package_name), compat, false),
                 RcSemverPubgrub::new((*dep.pubgrub_req).clone()),
             )
         } else {
             (
-                new_wide(dep.package_name, &dep.req, from, compat.into()),
+                new_wide(
+                    FastHashInternedString::new(dep.package_name),
+                    &dep.req,
+                    from,
+                    compat.into(),
+                ),
                 RcSemverPubgrub::full(),
             )
         }
@@ -313,7 +324,7 @@ impl<'c> Index<'c> {
     #[must_use]
     fn check_cycles(&self, root: Rc<Names<'c>>, pubmap: &SelectedDependencies<Self>) -> bool {
         let mut vertions: HashMap<
-            (InternedString, SemverCompatibility, bool),
+            (FastHashInternedString, SemverCompatibility, bool),
             (semver::Version, BTreeSet<_>, BTreeSet<_>),
         > = HashMap::new();
         // Identify the selected packages
@@ -369,14 +380,14 @@ impl<'c> Index<'c> {
 
     fn visit(
         &self,
-        id: (InternedString, SemverCompatibility, bool),
+        id: (FastHashInternedString, SemverCompatibility, bool),
         pubmap: &SelectedDependencies<Self>,
         vertions: &HashMap<
-            (InternedString, SemverCompatibility, bool),
+            (FastHashInternedString, SemverCompatibility, bool),
             (semver::Version, BTreeSet<&str>, BTreeSet<&str>),
         >,
-        visited: &mut HashSet<(InternedString, SemverCompatibility, bool)>,
-        checked: &mut HashSet<(InternedString, SemverCompatibility, bool)>,
+        visited: &mut HashSet<(FastHashInternedString, SemverCompatibility, bool)>,
+        checked: &mut HashSet<(FastHashInternedString, SemverCompatibility, bool)>,
     ) -> Result<(), ()> {
         if !visited.insert(id) {
             // We found a cycle and need to construct an error. Performance is no longer top priority.
@@ -386,7 +397,7 @@ impl<'c> Index<'c> {
         if checked.insert(id) {
             let (version, _feats, deps) = &vertions[&id];
 
-            let index_ver = self.get_version(&id.0, version).unwrap();
+            let index_ver = self.get_version(id.0, version).unwrap();
             for dep in index_ver.deps.iter() {
                 if dep.kind == DependencyKind::Dev {
                     continue;
@@ -398,7 +409,11 @@ impl<'c> Index<'c> {
 
                 let dep_ver = &pubmap[&cray];
                 self.visit(
-                    (dep.package_name, dep_ver.into(), false),
+                    (
+                        FastHashInternedString::new(dep.package_name),
+                        dep_ver.into(),
+                        false,
+                    ),
                     pubmap,
                     vertions,
                     visited,
@@ -432,7 +447,7 @@ impl<'c> Index<'c> {
         }
 
         let mut vertions: HashMap<
-            (InternedString, SemverCompatibility),
+            (FastHashInternedString, SemverCompatibility),
             (semver::Version, BTreeSet<_>, BTreeSet<_>, bool),
         > = HashMap::new();
         // Identify the selected packages
@@ -491,7 +506,7 @@ impl<'c> Index<'c> {
 
         let mut links: BTreeSet<_> = BTreeSet::new();
         for ((name, _), (ver, feats, deps, default_feature)) in vertions.iter() {
-            let index_ver = self.get_version(name, ver).unwrap();
+            let index_ver = self.get_version(*name, ver).unwrap();
             if index_ver.yanked {
                 return false;
             }
@@ -525,7 +540,7 @@ impl<'c> Index<'c> {
                         (other_name, _),
                         (other_ver, other_feats, _other_deps, other_default_feature),
                     )| {
-                        **other_name == *dep.package_name
+                        *other_name == FastHashInternedString::new(dep.package_name)
                             && dep.req.matches(other_ver)
                             && dep
                                 .features
@@ -592,7 +607,7 @@ impl<'c> DependencyProvider for Index<'c> {
             | Names::WideFeatures(_, req, _, _, _)
             | Names::WideDefaultFeatures(_, req, _, _) => {
                 // one version for each bucket that match req
-                self.get_versions(&package.crate_())
+                self.get_versions(package.crate_())
                     .filter(|v| req.matches(v))
                     .map(|v| SemverCompatibility::from(v))
                     .map(|v| v.canonical())
@@ -601,7 +616,7 @@ impl<'c> DependencyProvider for Index<'c> {
             Names::Bucket(_, _, _)
             | Names::BucketFeatures(_, _, _)
             | Names::BucketDefaultFeatures(_, _) => self
-                .get_versions(&package.crate_())
+                .get_versions(package.crate_())
                 .find(|v| range.contains(v))
                 .cloned(),
         })
@@ -621,14 +636,14 @@ impl<'c> DependencyProvider for Index<'c> {
                 usize::MAX
             }
 
-            Names::Wide(_, req, _, _) => self.count_wide_matches(range, &package.crate_(), req),
+            Names::Wide(_, req, _, _) => self.count_wide_matches(range, package.crate_(), req),
             Names::WideFeatures(_, req, _, _, _) | Names::WideDefaultFeatures(_, req, _, _) => self
-                .count_wide_matches(range, &package.crate_(), req)
+                .count_wide_matches(range, package.crate_(), req)
                 .saturating_add(1),
 
-            Names::Bucket(_, _, _) => self.count_matches(range, &package.crate_()),
+            Names::Bucket(_, _, _) => self.count_matches(range, package.crate_()),
             Names::BucketFeatures(_, _, _) | Names::BucketDefaultFeatures(_, _) => self
-                .count_matches(range, &package.crate_())
+                .count_matches(range, package.crate_())
                 .saturating_add(1),
         })
     }
@@ -643,7 +658,7 @@ impl<'c> DependencyProvider for Index<'c> {
             .insert((package.clone(), version.clone()));
         Ok(match &**package {
             &Names::Bucket(name, _major, all_features) => {
-                let Some(index_ver) = self.get_version(&name, version) else {
+                let Some(index_ver) = self.get_version(name, version) else {
                     return Err(SomeError);
                 };
                 self.dependencies
@@ -706,7 +721,7 @@ impl<'c> DependencyProvider for Index<'c> {
                 Dependencies::Available(deps)
             }
             Names::BucketFeatures(name, _major, FeatureNamespace::Feat(feat)) => {
-                let Some(index_ver) = self.get_version(&name, version) else {
+                let Some(index_ver) = self.get_version(*name, version) else {
                     return Err(SomeError);
                 };
                 self.dependencies
@@ -774,7 +789,7 @@ impl<'c> DependencyProvider for Index<'c> {
                 }
             }
             Names::BucketDefaultFeatures(name, _major) => {
-                let Some(index_ver) = self.get_version(&name, version) else {
+                let Some(index_ver) = self.get_version(*name, version) else {
                     return Err(SomeError);
                 };
                 self.dependencies
@@ -802,7 +817,7 @@ impl<'c> DependencyProvider for Index<'c> {
                 Dependencies::Available(deps)
             }
             Names::BucketFeatures(name, _major, FeatureNamespace::Dep(feat)) => {
-                let Some(index_ver) = self.get_version(name, version) else {
+                let Some(index_ver) = self.get_version(*name, version) else {
                     return Err(SomeError);
                 };
                 if index_ver.yanked {
@@ -965,7 +980,7 @@ pub fn process_crate_version(
     ver: semver::Version,
     mode: Mode,
 ) -> OutputSummary {
-    let root = new_bucket(crt, (&ver).into(), true);
+    let root = new_bucket(FastHashInternedString::new(crt), (&ver).into(), true);
     dp.reset();
     let mut pub_cyclic_package_dependency = None;
     let mut cyclic_package_dependency = false;
@@ -1041,10 +1056,7 @@ pub fn process_crate_version(
                 > = HashMap::default();
                 for (k, v) in map.iter() {
                     if k.is_real() {
-                        results
-                            .entry(FastHashInternedString::new(k.crate_()))
-                            .or_default()
-                            .insert(v.clone());
+                        results.entry(k.crate_()).or_default().insert(v.clone());
                     }
                 }
                 results

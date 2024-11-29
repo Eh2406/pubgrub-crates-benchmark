@@ -3,6 +3,8 @@ use std::rc::Rc;
 use cargo::util::interning::InternedString;
 use semver_pubgrub::SemverCompatibility;
 
+use crate::FastHashInternedString;
+
 #[derive(Clone, Copy, Eq, PartialEq, Hash, PartialOrd, Ord)]
 pub enum FeatureNamespace<'c> {
     Dep(&'c str),
@@ -50,48 +52,52 @@ impl serde::Serialize for FeatureNamespace<'_> {
 
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub enum Names<'c> {
-    Bucket(InternedString, SemverCompatibility, bool),
-    BucketFeatures(InternedString, SemverCompatibility, FeatureNamespace<'c>),
-    BucketDefaultFeatures(InternedString, SemverCompatibility),
+    Bucket(FastHashInternedString, SemverCompatibility, bool),
+    BucketFeatures(
+        FastHashInternedString,
+        SemverCompatibility,
+        FeatureNamespace<'c>,
+    ),
+    BucketDefaultFeatures(FastHashInternedString, SemverCompatibility),
     Wide(
-        InternedString,
+        FastHashInternedString,
         &'c semver::VersionReq,
-        InternedString,
+        FastHashInternedString,
         SemverCompatibility,
     ),
     WideFeatures(
-        InternedString,
+        FastHashInternedString,
         &'c semver::VersionReq,
-        InternedString,
+        FastHashInternedString,
         SemverCompatibility,
         FeatureNamespace<'c>,
     ),
     WideDefaultFeatures(
-        InternedString,
+        FastHashInternedString,
         &'c semver::VersionReq,
-        InternedString,
+        FastHashInternedString,
         SemverCompatibility,
     ),
-    Links(InternedString),
+    Links(FastHashInternedString),
 }
 
 pub fn new_bucket<'c>(
-    crate_: InternedString,
+    crate_: FastHashInternedString,
     compat: SemverCompatibility,
     all_features: bool,
 ) -> Rc<Names<'c>> {
     Rc::new(Names::Bucket(crate_, compat, all_features))
 }
 pub fn new_wide<'c>(
-    crate_: InternedString,
+    crate_: FastHashInternedString,
     req: &'c semver::VersionReq,
-    from: InternedString,
+    from: FastHashInternedString,
     compat: SemverCompatibility,
 ) -> Rc<Names<'c>> {
     Rc::new(Names::Wide(crate_, req, from, compat))
 }
 pub fn new_links<'c>(crate_: InternedString) -> Rc<Names<'c>> {
-    Rc::new(Names::Links(crate_))
+    Rc::new(Names::Links(FastHashInternedString::new(crate_)))
 }
 
 impl<'c> Ord for Names<'c> {
@@ -104,7 +110,7 @@ impl<'c> Ord for Names<'c> {
                 | Names::Wide(c, _, _, _)
                 | Names::WideFeatures(c, _, _, _, _)
                 | Names::WideDefaultFeatures(c, _, _, _)
-                | Names::Links(c) => *c,
+                | Names::Links(c) => c.as_str(),
             }
         }
         .cmp({
@@ -115,7 +121,7 @@ impl<'c> Ord for Names<'c> {
                 | Names::Wide(c, _, _, _)
                 | Names::WideFeatures(c, _, _, _, _)
                 | Names::WideDefaultFeatures(c, _, _, _)
-                | Names::Links(c) => c,
+                | Names::Links(c) => c.as_str(),
             }
         })
         .then_with(|| self.to_string().cmp(&other.to_string()))
@@ -132,7 +138,7 @@ impl<'c> Names<'c> {
     pub fn is_real(&self) -> bool {
         matches!(self, &Self::Bucket(..))
     }
-    pub fn crate_(&self) -> InternedString {
+    pub fn crate_(&self) -> FastHashInternedString {
         match self {
             Names::Bucket(c, _, _)
             | Names::BucketFeatures(c, _, _)
@@ -171,7 +177,7 @@ impl<'c> std::fmt::Display for Names<'c> {
         match self {
             Names::Bucket(n, m, a) => {
                 f.write_str("Bucket:")?;
-                f.write_str(n)?;
+                f.write_str(n.as_str())?;
                 f.write_str("@")?;
                 f.write_str(&match m {
                     SemverCompatibility::Major(i) => format!("{}.x.y", i),
@@ -185,7 +191,7 @@ impl<'c> std::fmt::Display for Names<'c> {
             }
             Names::BucketFeatures(n, m, feat) => {
                 f.write_str("Bucket:")?;
-                f.write_str(n)?;
+                f.write_str(n.as_str())?;
                 f.write_str("@")?;
                 f.write_str(&match m {
                     SemverCompatibility::Major(i) => format!("{}.x.y", i),
@@ -197,7 +203,7 @@ impl<'c> std::fmt::Display for Names<'c> {
             }
             Names::BucketDefaultFeatures(n, m) => {
                 f.write_str("Bucket:")?;
-                f.write_str(n)?;
+                f.write_str(n.as_str())?;
                 f.write_str("@")?;
                 f.write_str(&match m {
                     SemverCompatibility::Major(i) => format!("{}.x.y", i),
@@ -208,9 +214,9 @@ impl<'c> std::fmt::Display for Names<'c> {
             }
             Names::Wide(c, range, parent, parent_com) => {
                 f.write_str("Range:")?;
-                f.write_str(c)?;
+                f.write_str(c.as_str())?;
                 f.write_str("(From:")?;
-                f.write_str(parent)?;
+                f.write_str(parent.as_str())?;
                 f.write_str("@")?;
                 f.write_str(&match parent_com {
                     SemverCompatibility::Major(i) => format!("{}.x.y", i),
@@ -222,9 +228,9 @@ impl<'c> std::fmt::Display for Names<'c> {
             }
             Names::WideFeatures(c, range, parent, parent_com, feat) => {
                 f.write_str("Range:")?;
-                f.write_str(c)?;
+                f.write_str(c.as_str())?;
                 f.write_str("(From:")?;
-                f.write_str(parent)?;
+                f.write_str(parent.as_str())?;
                 f.write_str("@")?;
                 f.write_str(&match parent_com {
                     SemverCompatibility::Major(i) => format!("{}.x.y", i),
@@ -238,9 +244,9 @@ impl<'c> std::fmt::Display for Names<'c> {
             }
             Names::WideDefaultFeatures(c, range, parent, parent_com) => {
                 f.write_str("Range:")?;
-                f.write_str(c)?;
+                f.write_str(c.as_str())?;
                 f.write_str("(From:")?;
-                f.write_str(parent)?;
+                f.write_str(parent.as_str())?;
                 f.write_str("@")?;
                 f.write_str(&match parent_com {
                     SemverCompatibility::Major(i) => format!("{}.x.y", i),
@@ -253,7 +259,7 @@ impl<'c> std::fmt::Display for Names<'c> {
             }
             Names::Links(name) => {
                 f.write_str("Links:")?;
-                f.write_str(name)
+                f.write_str(name.as_str())
             }
         }
     }

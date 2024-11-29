@@ -39,7 +39,7 @@ fn check<'c>(dp: &mut Index<'c>, root: Rc<Names<'c>>, ver: &semver::Version) -> 
         }
     }
     dp.reset_time();
-    let cargo_out = cargo_resolver::resolve(root.crate_().into(), &ver, dp);
+    let cargo_out = cargo_resolver::resolve(root.crate_().as_interned_string(), &ver, dp);
 
     let cyclic_package_dependency = &cargo_out
         .as_ref()
@@ -65,17 +65,15 @@ fn check<'c>(dp: &mut Index<'c>, root: Rc<Names<'c>>, ver: &semver::Version) -> 
                 > = HashMap::default();
                 for (k, v) in map.iter() {
                     if k.is_real() {
-                        results
-                            .entry(FastHashInternedString::new(k.crate_()))
-                            .or_default()
-                            .insert(v.clone());
+                        results.entry(k.crate_()).or_default().insert(v.clone());
                     }
                 }
                 results
             })
             .ok();
         dp.reset_time();
-        let cargo_check_pub_lock_out = cargo_resolver::resolve(root.crate_().into(), &ver, dp);
+        let cargo_check_pub_lock_out =
+            cargo_resolver::resolve(root.crate_().as_interned_string(), &ver, dp);
 
         let cyclic_package_dependency_pub_lock = &cargo_check_pub_lock_out
             .as_ref()
@@ -153,7 +151,7 @@ fn named_from_files_pass_tests() {
         let start_time = std::time::Instant::now();
         let crates = crates_data_from_file(&case);
         let mut dp = Index::new(&crates);
-        let root = new_bucket(name, (&ver).into(), true);
+        let root = new_bucket(FastHashInternedString::new(name), (&ver).into(), true);
         if !check(&mut dp, root, &ver) {
             dp.make_index_ron_file();
             faild.push(file_name.to_string());
@@ -173,7 +171,7 @@ fn named_from_files_pass_without_vers() {
         let (name, ver) = case_from_file_name(&file_name);
         let name = InternedString::new(name);
         eprintln!("Running: {name} @ {ver}");
-        let root = new_bucket(name, (&ver).into(), true);
+        let root = new_bucket(FastHashInternedString::new(name), (&ver).into(), true);
         let start_time = std::time::Instant::now();
         let data = std::fs::read_to_string(&case).unwrap();
         let mut data: Vec<index_data::Version> = ron::de::from_str(&data).unwrap();
@@ -274,12 +272,11 @@ fn all_vers_in_files_pass_tests() {
         let crates = crates_data_from_file(&case);
         let mut dp = Index::new(&crates);
         for (name, vers) in &crates {
-            let name = name.as_interned_string();
             for ver in vers.keys() {
-                let root = new_bucket(name, ver.into(), true);
+                let root = new_bucket(*name, ver.into(), true);
                 if !check(&mut dp, root, ver) {
                     dp.make_index_ron_file();
-                    faild.push(format!("{file_name}:{name}@{ver}"));
+                    faild.push(format!("{file_name}:{}@{ver}", name.as_str()));
                 };
             }
         }
