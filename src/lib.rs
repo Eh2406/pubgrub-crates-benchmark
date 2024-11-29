@@ -65,10 +65,12 @@ impl FastHashInternedString {
         }
     }
 
+    pub fn as_str(&self) -> &'static str {
+        unsafe { std::str::from_utf8_unchecked(std::slice::from_raw_parts(self.ptr, self.len)) }
+    }
+
     pub fn as_interned_string(&self) -> InternedString {
-        InternedString::new(unsafe {
-            std::str::from_utf8_unchecked(std::slice::from_raw_parts(self.ptr, self.len))
-        })
+        InternedString::new(self.as_str())
     }
 }
 
@@ -84,7 +86,8 @@ pub struct Index<'c> {
     past_result: Option<
         HashMap<FastHashInternedString, BTreeSet<semver::Version>, rustc_hash::FxBuildHasher>,
     >,
-    dependencies: RefCell<HashSet<(InternedString, semver::Version), rustc_hash::FxBuildHasher>>,
+    dependencies:
+        RefCell<HashSet<(FastHashInternedString, semver::Version), rustc_hash::FxBuildHasher>>,
     pubgrub_dependencies:
         RefCell<HashSet<(Rc<Names<'c>>, semver::Version), rustc_hash::FxBuildHasher>>,
     start: Cell<Instant>,
@@ -172,12 +175,15 @@ impl<'c> Index<'c> {
     fn make_index_ron_data(&self) -> Vec<index_data::Version> {
         let deps = self.dependencies.borrow();
 
-        let name_vers: BTreeSet<_> = deps.iter().map(|(n, v)| (n, v)).collect();
+        let name_vers: BTreeSet<_> = deps
+            .iter()
+            .map(|(n, v)| (n.as_interned_string(), v))
+            .collect();
 
         name_vers
             .into_iter()
             .map(|(n, version)| {
-                self.crates[&FastHashInternedString::new(*n)][version]
+                self.crates[&FastHashInternedString::new(n)][version]
                     .0
                     .clone()
             })
@@ -642,7 +648,7 @@ impl<'c> DependencyProvider for Index<'c> {
                 };
                 self.dependencies
                     .borrow_mut()
-                    .insert((index_ver.name, version.clone()));
+                    .insert((FastHashInternedString::new(index_ver.name), version.clone()));
                 if index_ver.yanked {
                     return Ok(Dependencies::Unavailable("yanked: Bucket".into()));
                 }
@@ -705,7 +711,7 @@ impl<'c> DependencyProvider for Index<'c> {
                 };
                 self.dependencies
                     .borrow_mut()
-                    .insert((index_ver.name, version.clone()));
+                    .insert((FastHashInternedString::new(index_ver.name), version.clone()));
                 if index_ver.yanked {
                     return Ok(Dependencies::Unavailable(
                         "yanked: BucketFeatures Feat".into(),
@@ -773,7 +779,7 @@ impl<'c> DependencyProvider for Index<'c> {
                 };
                 self.dependencies
                     .borrow_mut()
-                    .insert((index_ver.name, version.clone()));
+                    .insert((FastHashInternedString::new(index_ver.name), version.clone()));
                 if index_ver.yanked {
                     return Ok(Dependencies::Unavailable(
                         "yanked: BucketFeatures DefaultFeatures".into(),

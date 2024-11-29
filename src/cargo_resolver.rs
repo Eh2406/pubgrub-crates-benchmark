@@ -35,9 +35,10 @@ impl<'a> Registry for crate::Index<'a> {
                 {
                     if let Some((_, summary)) = by_name.get(past_ver) {
                         if dep.matches(&summary) {
-                            self.dependencies
-                                .borrow_mut()
-                                .insert((dep.package_name(), summary.version().clone()));
+                            self.dependencies.borrow_mut().insert((
+                                FastHashInternedString::new(dep.package_name()),
+                                summary.version().clone(),
+                            ));
                             f(IndexSummary::Candidate(summary.clone()));
                         }
                     }
@@ -50,9 +51,10 @@ impl<'a> Registry for crate::Index<'a> {
                         QueryKind::Normalized => true,
                     };
                     if matched {
-                        self.dependencies
-                            .borrow_mut()
-                            .insert((dep.package_name(), summary.version().clone()));
+                        self.dependencies.borrow_mut().insert((
+                            FastHashInternedString::new(dep.package_name()),
+                            summary.version().clone(),
+                        ));
                         f(IndexSummary::Candidate(summary.clone()));
                     }
                 }
