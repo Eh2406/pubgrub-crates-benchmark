@@ -9,7 +9,6 @@
         deps: [
             (
                 name: "ureq",
-                req: "^2.0",
             ),
         ],
         features: {
@@ -24,14 +23,8 @@
         deps: [
             (
                 name: "c",
-                req: "^0.18",
                 optional: true,
             ),
         ],
-        features: {
-            "cookies": [
-                "dep:c",
-            ],
-        },
     ),
 ]

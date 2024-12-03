@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{iter::once, path::Path};
 
 use super::*;
 
@@ -176,11 +176,12 @@ fn named_from_files_pass_without_vers() {
         let mut data: Vec<index_data::Version> = ron::de::from_str(&data).unwrap();
         let mut offset = 0;
         'data: loop {
-            for i in 0..data.len() {
+            for i_raw in 0..=data.len() {
                 let len = data.len();
-                let i = (i + offset) % len;
-                let removed = data.swap_remove(i);
-                let crates = read_test_file(data.iter().cloned());
+                let i = (i_raw + offset) % len;
+                let removed = &data[i];
+                let iter = data.iter().cloned().filter(|d| d != removed);
+                let crates = read_test_file(iter.clone());
                 let mut dp = Index::new(&crates);
                 if !check(&mut dp, root.clone(), &ver) {
                     data = dp.make_index_ron_data();
@@ -189,8 +190,7 @@ fn named_from_files_pass_without_vers() {
                     continue 'data;
                 };
                 if let Some(without_features) = removed.clone().without_features() {
-                    data.push(without_features);
-                    let crates = read_test_file(data.iter().cloned());
+                    let crates = read_test_file(iter.clone().chain(once(without_features)));
                     let mut dp = Index::new(&crates);
                     if !check(&mut dp, root.clone(), &ver) {
                         data = dp.make_index_ron_data();
@@ -198,28 +198,25 @@ fn named_from_files_pass_without_vers() {
                         println!("Failed on without_features {i} of {len}");
                         continue 'data;
                     };
-                    data.pop();
                 }
-                for f in 0..removed.features.len() {
+                let f_len = removed.features_raw.len();
+                for f in 0..f_len {
                     if let Some(without_features) = removed.clone().without_a_feature(f) {
                         if TryInto::<Summary>::try_into(&without_features).is_ok() {
-                            data.push(without_features);
-                            let crates = read_test_file(data.iter().cloned());
+                            let crates = read_test_file(iter.clone().chain(once(without_features)));
                             let mut dp = Index::new(&crates);
                             if !check(&mut dp, root.clone(), &ver) {
                                 data = dp.make_index_ron_data();
                                 offset = i;
-                                println!("Failed on without_a_feature({f}) {i} of {len}");
+                                println!("Failed on without_a_feature({f}/{f_len}) {i} of {len}");
                                 continue 'data;
                             };
-                            data.pop();
                         }
                     }
                 }
                 if let Some(without_deps) = removed.clone().without_deps() {
                     if TryInto::<Summary>::try_into(&without_deps).is_ok() {
-                        data.push(without_deps);
-                        let crates = read_test_file(data.iter().cloned());
+                        let crates = read_test_file(iter.clone().chain(once(without_deps)));
                         let mut dp = Index::new(&crates);
                         if !check(&mut dp, root.clone(), &ver) {
                             data = dp.make_index_ron_data();
@@ -227,22 +224,66 @@ fn named_from_files_pass_without_vers() {
                             println!("Failed on without_deps {i} of {len}");
                             continue 'data;
                         };
-                        data.pop();
                     }
                 }
-                for d in 0..removed.deps.len() {
+                let d_len = removed.deps.len();
+                for d in 0..d_len {
                     if let Some(without_deps) = removed.clone().without_a_dep(d) {
                         if TryInto::<Summary>::try_into(&without_deps).is_ok() {
-                            data.push(without_deps);
-                            let crates = read_test_file(data.iter().cloned());
+                            let crates = read_test_file(iter.clone().chain(once(without_deps)));
                             let mut dp = Index::new(&crates);
                             if !check(&mut dp, root.clone(), &ver) {
                                 data = dp.make_index_ron_data();
                                 offset = i;
-                                println!("Failed on without_a_dep({d}) {i} of {len}");
+                                println!("Failed on without_a_dep({d}/{d_len}) {i} of {len}");
                                 continue 'data;
                             };
-                            data.pop();
+                        }
+                    }
+                }
+                for d in 0..d_len {
+                    if let Some(without_deps) =
+                        removed.clone().without_default_features_for_a_dep(d)
+                    {
+                        if TryInto::<Summary>::try_into(&without_deps).is_ok() {
+                            let crates = read_test_file(iter.clone().chain(once(without_deps)));
+                            let mut dp = Index::new(&crates);
+                            if !check(&mut dp, root.clone(), &ver) {
+                                data = dp.make_index_ron_data();
+                                offset = i;
+                                println!("Failed on without_default_features_for_a_dep({d}/{d_len}) {i} of {len}");
+                                continue 'data;
+                            };
+                        }
+                    }
+                }
+                for d in 0..d_len {
+                    if let Some(without_deps) = removed.clone().without_req_for_a_dep(d) {
+                        if TryInto::<Summary>::try_into(&without_deps).is_ok() {
+                            let crates = read_test_file(iter.clone().chain(once(without_deps)));
+                            let mut dp = Index::new(&crates);
+                            if !check(&mut dp, root.clone(), &ver) {
+                                data = dp.make_index_ron_data();
+                                offset = i;
+                                println!(
+                                    "Failed on without_req_for_a_dep({d}/{d_len}) {i} of {len}"
+                                );
+                                continue 'data;
+                            };
+                        }
+                    }
+                }
+                for d in 0..d_len {
+                    if let Some(without_deps) = removed.clone().without_optional_for_a_dep(d) {
+                        if TryInto::<Summary>::try_into(&without_deps).is_ok() {
+                            let crates = read_test_file(iter.clone().chain(once(without_deps)));
+                            let mut dp = Index::new(&crates);
+                            if !check(&mut dp, root.clone(), &ver) {
+                                data = dp.make_index_ron_data();
+                                offset = i;
+                                println!("Failed on without_optional_for_a_dep({d}/{d_len}) {i} of {len}");
+                                continue 'data;
+                            };
                         }
                     }
                 }
@@ -252,6 +293,7 @@ fn named_from_files_pass_without_vers() {
         let crates = read_test_file(data);
         let mut dp = Index::new(&crates);
         if !check(&mut dp, root, &ver) {
+            println!("Writing failling file");
             dp.make_index_ron_file();
         };
 

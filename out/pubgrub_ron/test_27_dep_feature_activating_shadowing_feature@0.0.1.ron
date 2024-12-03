@@ -59,6 +59,20 @@
             ),
         }),
     },
+    "Bucket:a@0.0.1/dep:b": {
+        "0.0.1": Ok({
+            "Bucket:a@0.0.1": (
+                normal: [
+                    (Included("0.0.1"), Included("0.0.1")),
+                ],
+            ),
+            "Bucket:b@0.0.1": (
+                normal: [
+                    (Included("0.0.1"), Excluded("0.0.2")),
+                ],
+            ),
+        }),
+    },
     "Bucket:a@0.0.1/dep:x": {
         "0.0.1": Ok({
             "Bucket:a@0.0.1": (
