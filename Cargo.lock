@@ -3370,7 +3370,7 @@ dependencies = [
 [[package]]
 name = "pubgrub"
 version = "0.2.1"
-source = "git+https://github.com/pubgrub-rs/pubgrub?branch=dev#3741e3befa61ebc3461d5744d6e1735d18fb6a49"
+source = "git+https://github.com/Eh2406/pubgrub?branch=conflict_count#52e7b59b56afc3ee88d99275b324303736b54e2d"
 dependencies = [
  "indexmap",
  "log",
@@ -4278,7 +4278,7 @@ checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
 [[package]]
 name = "version-ranges"
 version = "0.1.1"
-source = "git+https://github.com/pubgrub-rs/pubgrub?branch=dev#3741e3befa61ebc3461d5744d6e1735d18fb6a49"
+source = "git+https://github.com/Eh2406/pubgrub?branch=conflict_count#52e7b59b56afc3ee88d99275b324303736b54e2d"
 dependencies = [
  "serde",
  "smallvec",
