@@ -233,18 +233,14 @@ impl<'c> Index<'c> {
         Q: ?Sized + Hash + Eq,
         InternedString: std::borrow::Borrow<Q>,
     {
-        if range.inner.only_one_compatibility_range().is_some() {
-            1
-        } else {
-            // one version for each bucket that match req
-            self.get_versions(package)
-                .filter(|v| req.matches(v))
-                .map(|v| SemverCompatibility::from(v))
-                .dedup()
-                .map(|v| v.canonical())
-                .filter(|v| range.contains(v))
-                .count() as u32
-        }
+        // one version for each bucket that match req
+        self.get_versions(package)
+            .filter(|v| req.matches(v))
+            .map(|v| SemverCompatibility::from(v))
+            .dedup()
+            .map(|v| v.canonical())
+            .filter(|v| range.contains(v))
+            .count() as u32
     }
 
     fn count_matches<Q>(&self, range: &RcSemverPubgrub, package: &Q) -> u32
@@ -252,13 +248,9 @@ impl<'c> Index<'c> {
         Q: ?Sized + Hash + Eq,
         InternedString: std::borrow::Borrow<Q>,
     {
-        if range.inner.as_singleton().is_some() {
-            1
-        } else {
-            self.get_versions(package)
-                .filter(|v| range.contains(v))
-                .count() as u32
-        }
+        self.get_versions(package)
+            .filter(|v| range.contains(v))
+            .count() as u32
     }
 
     fn from_dep(
@@ -581,39 +573,91 @@ impl<'c> DependencyProvider for Index<'c> {
         })
     }
 
-    type Priority = (u32, Reverse<u32>);
+    type Priority = (u32, Reverse<u32>, Reverse<u32>);
 
     fn prioritize(
         &self,
         package: &Names<'c>,
         range: &RcSemverPubgrub,
-        conflict_count: &PackageResolutionStatistics,
+        stats: &PackageResolutionStatistics,
     ) -> Self::Priority {
-        (
-            conflict_count.conflict_count(),
-            Reverse(match package {
-                Names::Links(_name) => {
-                    // PubGrub automatically handles when any requirement has no overlap. So this is only deciding a importance of picking the version:
-                    //
-                    // - If it only matches one thing, then adding the decision with no additional dependencies makes no difference.
-                    // - If it can match more than one thing, and it is entirely equivalent to picking the packages directly which would make more sense to the users.
-                    //
-                    // So only rubberstamp links attributes when all other decisions are made, by setting the priority as low as it will go.
-                    u32::MAX
-                }
+        match package {
+            Names::Links(_name) => {
+                // PubGrub automatically handles when any requirement has no overlap. So this is only deciding a importance of picking the version:
+                //
+                // - If it only matches one thing, then adding the decision with no additional dependencies makes no difference.
+                // - If it can match more than one thing, and it is entirely equivalent to picking the packages directly which would make more sense to the users.
+                //
+                // So only rubberstamp links attributes when all other decisions are made, by setting the priority as low as it will go.
+                (stats.conflict_count(), Reverse(u32::MAX), Reverse(u32::MAX))
+            }
 
-                Names::Wide(_, req, _, _) => self.count_wide_matches(range, &package.crate_(), req),
-                Names::WideFeatures(_, req, _, _, _) | Names::WideDefaultFeatures(_, req, _, _) => {
-                    self.count_wide_matches(range, &package.crate_(), req)
-                        .saturating_add(1)
+            Names::Wide(_, req, _, _) => {
+                match (
+                    stats.conflict_count(),
+                    range.inner.only_one_compatibility_range().is_some(),
+                ) {
+                    (conflict_count, true) => {
+                        (conflict_count, Reverse(1), Reverse(stats.discovery_order()))
+                    }
+                    (0, false) => (0, Reverse(u32::MAX), Reverse(stats.discovery_order())),
+                    (conflict_count, false) => (
+                        conflict_count,
+                        Reverse(self.count_wide_matches(range, &package.crate_(), req)),
+                        Reverse(stats.discovery_order()),
+                    ),
                 }
+            }
+            Names::WideFeatures(_, req, _, _, _) | Names::WideDefaultFeatures(_, req, _, _) => {
+                match (
+                    stats.conflict_count(),
+                    range.inner.only_one_compatibility_range().is_some(),
+                ) {
+                    (conflict_count, true) => {
+                        (conflict_count, Reverse(0), Reverse(stats.discovery_order()))
+                    }
+                    (0, false) => (0, Reverse(u32::MAX - 1), Reverse(stats.discovery_order())),
+                    (conflict_count, false) => (
+                        conflict_count,
+                        Reverse(
+                            self.count_wide_matches(range, &package.crate_(), req)
+                                .saturating_add(1),
+                        ),
+                        Reverse(stats.discovery_order()),
+                    ),
+                }
+            }
 
-                Names::Bucket(_, _, _) => self.count_matches(range, &package.crate_()),
-                Names::BucketFeatures(_, _, _) | Names::BucketDefaultFeatures(_, _) => self
-                    .count_matches(range, &package.crate_())
-                    .saturating_add(1),
-            }),
-        )
+            Names::Bucket(_, _, _) => {
+                match (stats.conflict_count(), range.inner.as_singleton().is_some()) {
+                    (conflict_count, true) => {
+                        (conflict_count, Reverse(1), Reverse(stats.discovery_order()))
+                    }
+                    (0, false) => (0, Reverse(u32::MAX), Reverse(stats.discovery_order())),
+                    (conflict_count, false) => (
+                        conflict_count,
+                        Reverse(self.count_matches(range, &package.crate_())),
+                        Reverse(stats.discovery_order()),
+                    ),
+                }
+            }
+            Names::BucketFeatures(_, _, _) | Names::BucketDefaultFeatures(_, _) => {
+                match (stats.conflict_count(), range.inner.as_singleton().is_some()) {
+                    (conflict_count, true) => {
+                        (conflict_count, Reverse(0), Reverse(stats.discovery_order()))
+                    }
+                    (0, false) => (0, Reverse(u32::MAX - 1), Reverse(stats.discovery_order())),
+                    (conflict_count, false) => (
+                        conflict_count,
+                        Reverse(
+                            self.count_matches(range, &package.crate_())
+                                .saturating_add(1),
+                        ),
+                        Reverse(stats.discovery_order()),
+                    ),
+                }
+            }
+        }
     }
 
     fn get_dependencies(
