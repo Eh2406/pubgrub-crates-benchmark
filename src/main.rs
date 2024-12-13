@@ -64,9 +64,15 @@ fn main() {
 
     let to_prosses: Vec<_> = data
         .par_iter()
-        .filter(|(c, _)| args.filter.as_ref().map_or(true, |f| c.contains(f)))
+        .filter(|(c, _)| {
+            args.filter
+                .as_ref()
+                .map_or(true, |f| c.as_str() == f.as_str())
+        })
         .flat_map(|(c, v)| v.par_iter().map(|(v, _)| (c.clone(), v)))
         .collect();
+
+    let _profiler = dhat::Profiler::new_heap();
 
     thread::scope(|s| {
         let (out_tx, out_rx) = mpsc::channel::<OutputSummary>();
