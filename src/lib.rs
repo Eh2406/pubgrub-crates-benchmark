@@ -573,7 +573,7 @@ impl<'c> DependencyProvider for Index<'c> {
         })
     }
 
-    type Priority = (u32, Reverse<u32>, Reverse<u32>);
+    type Priority = (u32, Reverse<u32>);
 
     fn prioritize(
         &self,
@@ -589,7 +589,7 @@ impl<'c> DependencyProvider for Index<'c> {
                 // - If it can match more than one thing, and it is entirely equivalent to picking the packages directly which would make more sense to the users.
                 //
                 // So only rubberstamp links attributes when all other decisions are made, by setting the priority as low as it will go.
-                (stats.conflict_count(), Reverse(u32::MAX), Reverse(u32::MAX))
+                (stats.conflict_count(), Reverse(u32::MAX))
             }
 
             Names::Wide(_, req, _, _) => {
@@ -597,14 +597,11 @@ impl<'c> DependencyProvider for Index<'c> {
                     stats.conflict_count(),
                     range.inner.only_one_compatibility_range().is_some(),
                 ) {
-                    (conflict_count, true) => {
-                        (conflict_count, Reverse(1), Reverse(stats.discovery_order()))
-                    }
-                    (0, false) => (0, Reverse(u32::MAX), Reverse(stats.discovery_order())),
+                    (conflict_count, true) => (conflict_count, Reverse(1)),
+                    (0, false) => (0, Reverse(u32::MAX)),
                     (conflict_count, false) => (
                         conflict_count,
                         Reverse(self.count_wide_matches(range, &package.crate_(), req)),
-                        Reverse(stats.discovery_order()),
                     ),
                 }
             }
@@ -613,47 +610,38 @@ impl<'c> DependencyProvider for Index<'c> {
                     stats.conflict_count(),
                     range.inner.only_one_compatibility_range().is_some(),
                 ) {
-                    (conflict_count, true) => {
-                        (conflict_count, Reverse(0), Reverse(stats.discovery_order()))
-                    }
-                    (0, false) => (0, Reverse(u32::MAX - 1), Reverse(stats.discovery_order())),
+                    (conflict_count, true) => (conflict_count, Reverse(0)),
+                    (0, false) => (0, Reverse(u32::MAX - 1)),
                     (conflict_count, false) => (
                         conflict_count,
                         Reverse(
                             self.count_wide_matches(range, &package.crate_(), req)
                                 .saturating_add(1),
                         ),
-                        Reverse(stats.discovery_order()),
                     ),
                 }
             }
 
             Names::Bucket(_, _, _) => {
                 match (stats.conflict_count(), range.inner.as_singleton().is_some()) {
-                    (conflict_count, true) => {
-                        (conflict_count, Reverse(1), Reverse(stats.discovery_order()))
-                    }
-                    (0, false) => (0, Reverse(u32::MAX), Reverse(stats.discovery_order())),
+                    (conflict_count, true) => (conflict_count, Reverse(1)),
+                    (0, false) => (0, Reverse(u32::MAX)),
                     (conflict_count, false) => (
                         conflict_count,
                         Reverse(self.count_matches(range, &package.crate_())),
-                        Reverse(stats.discovery_order()),
                     ),
                 }
             }
             Names::BucketFeatures(_, _, _) | Names::BucketDefaultFeatures(_, _) => {
                 match (stats.conflict_count(), range.inner.as_singleton().is_some()) {
-                    (conflict_count, true) => {
-                        (conflict_count, Reverse(0), Reverse(stats.discovery_order()))
-                    }
-                    (0, false) => (0, Reverse(u32::MAX - 1), Reverse(stats.discovery_order())),
+                    (conflict_count, true) => (conflict_count, Reverse(0)),
+                    (0, false) => (0, Reverse(u32::MAX - 1)),
                     (conflict_count, false) => (
                         conflict_count,
                         Reverse(
                             self.count_matches(range, &package.crate_())
                                 .saturating_add(1),
                         ),
-                        Reverse(stats.discovery_order()),
                     ),
                 }
             }

@@ -37,4 +37,5 @@ tikv-jemallocator = "0.5"
 mimalloc = "0.1"
 
 [patch."https://github.com/pubgrub-rs/pubgrub"]
-pubgrub = { git="https://github.com/Eh2406/pubgrub", branch="conflict_count" }
+pubgrub = { git="https://github.com/Eh2406/pubgrub", branch="konsti/dev/incompat-tracker" }
+

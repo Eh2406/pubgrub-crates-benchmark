@@ -2734,7 +2734,7 @@ dependencies = [
 [[package]]
 name = "pubgrub"
 version = "0.2.1"
-source = "git+https://github.com/Eh2406/pubgrub?branch=conflict_count#65021252bca9551e7c223fe0937d4ea79f3f1427"
+source = "git+https://github.com/Eh2406/pubgrub?branch=konsti%2Fdev%2Fincompat-tracker#087bcdf506c070b3538b84c1281d094d60358e40"
 dependencies = [
  "indexmap",
  "log",
@@ -3641,7 +3641,7 @@ checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
 [[package]]
 name = "version-ranges"
 version = "0.1.1"
-source = "git+https://github.com/Eh2406/pubgrub?branch=conflict_count#65021252bca9551e7c223fe0937d4ea79f3f1427"
+source = "git+https://github.com/Eh2406/pubgrub?branch=konsti%2Fdev%2Fincompat-tracker#087bcdf506c070b3538b84c1281d094d60358e40"
 dependencies = [
  "serde",
  "smallvec",
