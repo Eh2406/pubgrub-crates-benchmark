@@ -720,7 +720,7 @@ impl<'c> DependencyProvider for Index<'c> {
                 }
                 Dependencies::Available(deps)
             }
-            Names::BucketFeatures(name, _major, FeatureNamespace::Feat(feat)) => {
+            Names::BucketFeatures(name, compatibility, FeatureNamespace::Feat(feat)) => {
                 let Some(index_ver) = self.get_version(name.as_str(), version) else {
                     return Err(SomeError);
                 };
@@ -739,6 +739,7 @@ impl<'c> DependencyProvider for Index<'c> {
                 );
 
                 if let Some(vals) = index_ver.features.get(*feat) {
+                    let compat_range = RcSemverPubgrub::new(SemverPubgrub::from(compatibility));
                     for val in &**vals {
                         if let Some((dep, dep_feat)) = val.split_once('/') {
                             let dep_name = dep.strip_suffix('?');
@@ -755,7 +756,7 @@ impl<'c> DependencyProvider for Index<'c> {
                                     deps_insert(
                                         &mut deps,
                                         package.with_features(FeatureNamespace::Dep(dep_name)),
-                                        RcSemverPubgrub::singleton(version.clone()),
+                                        compat_range.clone(),
                                     );
 
                                     if !week
@@ -765,7 +766,7 @@ impl<'c> DependencyProvider for Index<'c> {
                                         deps_insert(
                                             &mut deps,
                                             package.with_features(FeatureNamespace::Feat(dep_name)),
-                                            RcSemverPubgrub::singleton(version.clone()),
+                                            compat_range.clone(),
                                         );
                                     }
                                 }
@@ -779,7 +780,7 @@ impl<'c> DependencyProvider for Index<'c> {
                             deps_insert(
                                 &mut deps,
                                 package.with_features(FeatureNamespace::new(val)),
-                                RcSemverPubgrub::singleton(version.clone()),
+                                compat_range.clone(),
                             );
                         }
                     }
@@ -788,7 +789,7 @@ impl<'c> DependencyProvider for Index<'c> {
                     Dependencies::Unavailable("no matching feat nor dep".into())
                 }
             }
-            Names::BucketDefaultFeatures(name, _major) => {
+            Names::BucketDefaultFeatures(name, compatibility) => {
                 let Some(index_ver) = self.get_version(name.as_str(), version) else {
                     return Err(SomeError);
                 };
@@ -807,10 +808,11 @@ impl<'c> DependencyProvider for Index<'c> {
                 );
 
                 if index_ver.features.contains_key("default") {
+                    let compat_range = RcSemverPubgrub::new(SemverPubgrub::from(compatibility));
                     deps_insert(
                         &mut deps,
                         package.with_features(FeatureNamespace::Feat("default")),
-                        RcSemverPubgrub::singleton(version.clone()),
+                        compat_range,
                     );
                 }
 
