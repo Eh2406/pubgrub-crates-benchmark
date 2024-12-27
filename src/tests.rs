@@ -1,11 +1,14 @@
 use std::path::Path;
 
+use semver_pubgrub::SmallVersion;
+
 use super::*;
 
-fn case_from_file_name(file_name: &str) -> (&str, semver::Version) {
+fn case_from_file_name(file_name: &str) -> (&str, SmallVersion) {
     let (name, rest) = file_name.split_once("@").unwrap();
     let ver = rest.strip_suffix(".ron").unwrap();
-    (name, ver.parse().unwrap())
+    let ver: semver::Version = ver.parse().unwrap();
+    (name, ver.into())
 }
 
 fn crates_data_from_file<P: AsRef<Path>>(path: P) -> IndexMapLookup {
@@ -15,7 +18,7 @@ fn crates_data_from_file<P: AsRef<Path>>(path: P) -> IndexMapLookup {
 }
 
 #[must_use]
-fn check<'c>(dp: &mut Index<'c>, root: Names<'c>, ver: &semver::Version) -> bool {
+fn check<'c>(dp: &mut Index<'c>, root: Names<'c>, ver: &SmallVersion) -> bool {
     dp.reset();
     let res = resolve(dp, root.clone(), ver.clone());
     let pub_cyclic_package_dependency = if let Ok(map) = res.as_ref() {
@@ -60,7 +63,7 @@ fn check<'c>(dp: &mut Index<'c>, root: Names<'c>, ver: &semver::Version) -> bool
             .map(|map| {
                 let mut results: HashMap<
                     InternedString,
-                    BTreeSet<semver::Version>,
+                    BTreeSet<SmallVersion>,
                     rustc_hash::FxBuildHasher,
                 > = HashMap::default();
                 for (k, v) in map.iter() {
@@ -89,14 +92,14 @@ fn check<'c>(dp: &mut Index<'c>, root: Names<'c>, ver: &semver::Version) -> bool
             .map(|map| {
                 let mut results: HashMap<
                     InternedString,
-                    BTreeSet<semver::Version>,
+                    BTreeSet<SmallVersion>,
                     rustc_hash::FxBuildHasher,
                 > = HashMap::default();
                 for v in map.iter() {
                     results
                         .entry(v.name())
                         .or_default()
-                        .insert(v.version().clone());
+                        .insert(v.version().clone().into());
                 }
                 results
             })

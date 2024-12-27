@@ -13,6 +13,7 @@ use cargo::sources::IndexSummary;
 use cargo::util::interning::InternedString;
 use cargo::util::{CargoResult, IntoUrl};
 use itertools::Itertools;
+use semver_pubgrub::SmallVersion;
 
 impl<'a> Registry for crate::Index<'a> {
     fn query(
@@ -32,7 +33,7 @@ impl<'a> Registry for crate::Index<'a> {
                         if dep.matches(&summary) {
                             self.dependencies
                                 .borrow_mut()
-                                .insert((dep.package_name(), summary.version().clone()));
+                                .insert((dep.package_name(), summary.version().clone().into()));
                             f(IndexSummary::Candidate(summary.clone()));
                         }
                     }
@@ -48,7 +49,7 @@ impl<'a> Registry for crate::Index<'a> {
                     if matched {
                         self.dependencies
                             .borrow_mut()
-                            .insert((dep.package_name(), summary.version().clone()));
+                            .insert((dep.package_name(), summary.version().clone().into()));
                         f(IndexSummary::Candidate(summary.clone()));
                     }
                 }
@@ -72,7 +73,7 @@ impl<'a> Registry for crate::Index<'a> {
 
 pub fn resolve<'c>(
     name: InternedString,
-    ver: &semver::Version,
+    ver: &SmallVersion,
     dp: &mut crate::Index<'c>,
 ) -> CargoResult<Resolve> {
     let Some(pack) = dp.crates.get(&name) else {

@@ -1,16 +1,16 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use pubgrub::VersionSet;
-use semver_pubgrub::SemverPubgrub;
+use semver_pubgrub::{SemverPubgrub, SmallVersion};
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, serde::Deserialize, serde::Serialize)]
 #[serde(transparent)]
 pub struct RcSemverPubgrub {
-    pub(crate) inner: Rc<SemverPubgrub<semver::Version>>,
+    pub(crate) inner: Rc<SemverPubgrub<SmallVersion>>,
 }
 
 impl RcSemverPubgrub {
-    pub fn new(inner: SemverPubgrub<semver::Version>) -> Self {
+    pub fn new(inner: SemverPubgrub<SmallVersion>) -> Self {
         Self {
             inner: Rc::new(inner),
         }
@@ -28,11 +28,11 @@ thread_local! {
         inner: Rc::new(SemverPubgrub::empty()),
     });
 
-    static ARC_SEMVER_PUBGRUB_SINGLETON: RefCell<HashMap<semver::Version, RcSemverPubgrub>> = RefCell::new(HashMap::default());
+    static ARC_SEMVER_PUBGRUB_SINGLETON: RefCell<HashMap<SmallVersion, RcSemverPubgrub>> = RefCell::new(HashMap::default());
 }
 
 impl VersionSet for RcSemverPubgrub {
-    type V = <SemverPubgrub<semver::Version> as VersionSet>::V;
+    type V = <SemverPubgrub<SmallVersion> as VersionSet>::V;
 
     fn empty() -> Self {
         ARC_SEMVER_PUBGRUB_EMPTY.with_borrow(|v| v.clone())

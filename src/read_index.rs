@@ -27,7 +27,7 @@ pub fn read_index(
                 .filter_map(|v| {
                     let s: Summary = (&v).try_into().ok()?;
 
-                    Some(((*v.vers).clone(), (v, s)))
+                    Some(((*v.vers).clone().into(), (v, s)))
                 })
                 .collect();
             (name, ver_lookup)
@@ -48,7 +48,7 @@ pub fn read_test_file(iter: impl IntoIterator<Item = index_data::Version>) -> In
         let s = (&v).try_into().unwrap();
         deps.entry(v.name.clone())
             .or_default()
-            .insert((*v.vers).clone(), (v, s));
+            .insert((*v.vers).clone().into(), (v, s));
     }
 
     deps
