@@ -431,9 +431,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.2.5"
+version = "1.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c31a0499c1dc64f458ad13872de75c0eb7e3fdb0e67964610c914b034fc5956e"
+checksum = "8d6dbb628b8f8555f86d0323c2eb39e3ec81901f4b83e091db8a6a76d316a333"
 dependencies = [
  "jobserver",
  "libc",
@@ -3040,7 +3040,7 @@ dependencies = [
 [[package]]
 name = "semver-pubgrub"
 version = "0.1.0"
-source = "git+https://github.com/pubgrub-rs/semver-pubgrub#0cfe3a1cc6bb17b47dfd9b4d5d266decd058a80e"
+source = "git+https://github.com/pubgrub-rs/semver-pubgrub#73350124f9922a021c35bdb3de75d6c06f5b6d2a"
 dependencies = [
  "pubgrub",
  "semver",
@@ -3270,9 +3270,9 @@ checksum = "b7401a30af6cb5818bb64852270bb722533397edcfc7344954a38f420819ece2"
 
 [[package]]
 name = "syn"
-version = "2.0.91"
+version = "2.0.92"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d53cbcb5a243bd33b7858b1d7f4aca2153490815872d86d955d6ea29f743c035"
+checksum = "70ae51629bf965c5c098cc9e87908a3df5301051a9e087d6f9bef5c9771ed126"
 dependencies = [
  "proc-macro2",
  "quote",
