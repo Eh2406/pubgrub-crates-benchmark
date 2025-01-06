@@ -6,7 +6,7 @@ use std::{
     fs::File,
     hash::{Hash, Hasher},
     io::{BufWriter, Write},
-    ops::Bound,
+    ops::{Bound, RangeBounds, RangeFull},
     time::Instant,
 };
 
@@ -168,18 +168,22 @@ impl<'c> Index<'c> {
         file.flush().unwrap();
     }
 
-    fn get_versions<Q>(&self, name: &Q) -> impl Iterator<Item = &SmallVersion> + '_
+    fn get_versions_raw<'a, Q, R>(
+        &'a self,
+        name: &Q,
+        range: R,
+    ) -> impl DoubleEndedIterator<Item = &'a SmallVersion> + Clone + 'a
     where
         Q: ?Sized + Hash + Eq,
         InternedString: std::borrow::Borrow<Q>,
+        R: RangeBounds<SmallVersion> + Clone + 'a,
     {
         if let Some(past) = self.past_result.as_ref() {
             let data = self.crates.get(name);
             Either::Left(
                 past.get(name)
                     .into_iter()
-                    .flat_map(|m| m.iter())
-                    .rev()
+                    .flat_map(move |m| m.range(range.clone()))
                     .filter(move |v| data.map_or(false, |d| d.contains_key(v))),
             )
         } else {
@@ -187,10 +191,17 @@ impl<'c> Index<'c> {
                 self.crates
                     .get(name)
                     .into_iter()
-                    .flat_map(|m| m.keys())
-                    .rev(),
+                    .flat_map(move |m| m.range(range.clone()).map(|(v, _)| v)),
             )
         }
+    }
+
+    fn get_versions<Q>(&self, name: &Q) -> impl Iterator<Item = &SmallVersion> + '_
+    where
+        Q: ?Sized + Hash + Eq,
+        InternedString: std::borrow::Borrow<Q>,
+    {
+        self.get_versions_raw::<_, RangeFull>(name, ..).rev()
     }
 
     fn get_version<Q>(&self, name: &Q, ver: &SmallVersion) -> Option<&'c index_data::Version>
@@ -915,6 +926,23 @@ impl<'c> DependencyProvider for Index<'c> {
             }
             Names::Links(_) => Dependencies::Available(DependencyConstraints::default()),
         })
+    }
+
+    fn simplify(&self, package: &Self::P, range: Self::VS) -> Self::VS {
+        if range.inner.iter_normal().count() + range.inner.iter_pre().count() <= 1 {
+            return range;
+        }
+        match &package {
+            Names::Links(_) => range,
+            _ => {
+                let bb = range.inner.bounding_range().unwrap();
+                RcSemverPubgrub::new(
+                    range
+                        .inner
+                        .simplify(self.get_versions_raw(&package.crate_(), ..)),
+                )
+            }
+        }
     }
 
     fn should_cancel(&self) -> Result<(), Self::Err> {

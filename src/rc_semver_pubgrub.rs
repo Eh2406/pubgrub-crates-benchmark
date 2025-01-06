@@ -83,4 +83,12 @@ impl VersionSet for RcSemverPubgrub {
         }
         self.inner.subset_of(&other.inner)
     }
+
+    fn simplify<'s, I>(&'s self, versions: I) -> Self
+    where
+        I: Iterator<Item = &'s Self::V> + 's,
+        Self::V: 's,
+    {
+        panic!()
+    }
 }
