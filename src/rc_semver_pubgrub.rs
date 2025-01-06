@@ -24,9 +24,7 @@ impl std::fmt::Display for RcSemverPubgrub {
 }
 
 thread_local! {
-    static ARC_SEMVER_PUBGRUB_EMPTY: RefCell<RcSemverPubgrub> = RefCell::new(RcSemverPubgrub {
-        inner: Rc::new(SemverPubgrub::empty()),
-    });
+    static ARC_SEMVER_PUBGRUB_EMPTY: RcSemverPubgrub = RcSemverPubgrub::new(SemverPubgrub::empty());
 
     static ARC_SEMVER_PUBGRUB_SINGLETON: RefCell<HashMap<SmallVersion, RcSemverPubgrub>> = RefCell::new(HashMap::default());
 }
@@ -35,7 +33,7 @@ impl VersionSet for RcSemverPubgrub {
     type V = <SemverPubgrub<SmallVersion> as VersionSet>::V;
 
     fn empty() -> Self {
-        ARC_SEMVER_PUBGRUB_EMPTY.with_borrow(|v| v.clone())
+        ARC_SEMVER_PUBGRUB_EMPTY.with(|v| v.clone())
     }
 
     fn singleton(v: Self::V) -> Self {
