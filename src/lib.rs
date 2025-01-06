@@ -265,7 +265,7 @@ impl<'c> Index<'c> {
         {
             (
                 new_bucket(dep.package_name, compat, false),
-                RcSemverPubgrub::new((*dep.pubgrub_req).clone()),
+                RcSemverPubgrub::new_borrowed(dep.pubgrub_req.as_ref()),
             )
         } else {
             (
@@ -547,7 +547,7 @@ impl<'c> DependencyProvider for Index<'c> {
     ) -> Result<Option<Self::V>, Self::Err> {
         Ok(match package {
             Names::Links(_name) => {
-                let Some((_, Bound::Included(v))) = range.inner.bounding_range() else {
+                let Some((_, Bound::Included(v))) = range.inner().bounding_range() else {
                     return Err(SomeError);
                 };
                 Some(v.clone())
@@ -594,7 +594,7 @@ impl<'c> DependencyProvider for Index<'c> {
             Names::Wide(_, req, _, _) => {
                 match (
                     stats.conflict_count(),
-                    range.inner.only_one_compatibility_range().is_some(),
+                    range.inner().only_one_compatibility_range().is_some(),
                 ) {
                     (conflict_count, true) => (conflict_count, Reverse(1)),
                     (0, false) => (0, Reverse(u32::MAX)),
@@ -607,7 +607,7 @@ impl<'c> DependencyProvider for Index<'c> {
             Names::WideFeatures(_, req, _, _, _) | Names::WideDefaultFeatures(_, req, _, _) => {
                 match (
                     stats.conflict_count(),
-                    range.inner.only_one_compatibility_range().is_some(),
+                    range.inner().only_one_compatibility_range().is_some(),
                 ) {
                     (conflict_count, true) => (conflict_count, Reverse(0)),
                     (0, false) => (0, Reverse(u32::MAX - 1)),
@@ -622,7 +622,7 @@ impl<'c> DependencyProvider for Index<'c> {
             }
 
             Names::Bucket(_, _, _) => {
-                match (stats.conflict_count(), range.inner.as_singleton().is_some()) {
+                match (stats.conflict_count(), range.inner().as_singleton().is_some()) {
                     (conflict_count, true) => (conflict_count, Reverse(1)),
                     (0, false) => (0, Reverse(u32::MAX)),
                     (conflict_count, false) => (
@@ -632,7 +632,7 @@ impl<'c> DependencyProvider for Index<'c> {
                 }
             }
             Names::BucketFeatures(_, _, _) | Names::BucketDefaultFeatures(_, _) => {
-                match (stats.conflict_count(), range.inner.as_singleton().is_some()) {
+                match (stats.conflict_count(), range.inner().as_singleton().is_some()) {
                     (conflict_count, true) => (conflict_count, Reverse(0)),
                     (0, false) => (0, Reverse(u32::MAX - 1)),
                     (conflict_count, false) => (
@@ -871,7 +871,7 @@ impl<'c> DependencyProvider for Index<'c> {
                 let compat_range = SemverPubgrub::from(&compatibility);
                 let req_range = SemverPubgrub::from(*req);
                 let range = req_range.intersection(&compat_range);
-                let range = RcSemverPubgrub::new(range.clone());
+                let range = RcSemverPubgrub::new_owned(range.clone());
 
                 Dependencies::Available(DependencyConstraints::from_iter([(
                     new_bucket(*name, compatibility, false),
@@ -883,7 +883,7 @@ impl<'c> DependencyProvider for Index<'c> {
                 let compat_range = SemverPubgrub::from(&compatibility);
                 let req_range = SemverPubgrub::from(*req);
                 let range = req_range.intersection(&compat_range);
-                let range = RcSemverPubgrub::new(range.clone());
+                let range = RcSemverPubgrub::new_owned(range.clone());
                 Dependencies::Available(DependencyConstraints::from_iter([
                     (
                         new_wide(*name, req, *parent, parent_com.clone()),
@@ -900,7 +900,7 @@ impl<'c> DependencyProvider for Index<'c> {
                 let compat_range = SemverPubgrub::from(&compatibility);
                 let req_range = SemverPubgrub::from(*req);
                 let range = req_range.intersection(&compat_range);
-                let range = RcSemverPubgrub::new(range.clone());
+                let range = RcSemverPubgrub::new_owned(range.clone());
 
                 Dependencies::Available(DependencyConstraints::from_iter([
                     (
