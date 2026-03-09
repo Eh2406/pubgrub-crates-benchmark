@@ -1,4 +1,7 @@
+use cargo::util::interning::InternedString;
+use crates_index::DependencyKind;
 use crossbeam::channel::unbounded;
+use std::collections::BTreeMap;
 use std::time::Duration;
 use std::{sync::mpsc, thread, time::Instant};
 
@@ -7,7 +10,9 @@ use benchmark_from_crates::{
 };
 use clap::Parser;
 use indicatif::{ProgressBar, ProgressFinish, ProgressStyle};
+use internment::Intern;
 use rayon::iter::{IntoParallelRefIterator as _, ParallelIterator as _};
+use semver_pubgrub::SemverPubgrub;
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 #[derive(Parser, Debug)]
@@ -60,7 +65,67 @@ fn main() {
     if let Some(commit) = args.commit {
         index.set_commit_from_refspec(&commit).unwrap();
     }
-    let data = read_index(&index, create_filter, version_filter);
+    let mut data = read_index(&index, create_filter, version_filter);
+
+    // Create dependencies using helper function to simplify construction
+    let make_dep = |name: &str, req: &str| -> index_data::Dependency {
+        index_data::Dependency {
+            name: InternedString::new(name),
+            package_name: InternedString::new(name),
+            req: Intern::new(req.parse().unwrap()),
+            pubgrub_req: Intern::new(SemverPubgrub::from(
+                &req.parse::<semver::VersionReq>().unwrap(),
+            )),
+            features: Intern::new(vec![]),
+            default_features: true,
+            kind: DependencyKind::Normal,
+            optional: false,
+        }
+    };
+
+    // manually add a crate to the index that has the following dependency:
+    // [dependencies]
+    // aws-runtime = "1.0"
+    // aws-config = "1.0"
+    // aws-smithy-runtime = "1.0"
+    // aws-sdk-s3 = "1.4"
+    // hmac = "0.10"
+
+    let aws_dependencies = [
+        make_dep("aws-runtime", "1.0"),
+        make_dep("aws-config", "1.0"),
+        make_dep("aws-smithy-runtime", "1.0"),
+        make_dep("aws-sdk-s3", "1.4"),
+        make_dep("hmac", "0.10"),
+    ];
+
+    // Build DependencyList with proper structure
+    let deps_list = index_data::DependencyList::from(
+        aws_dependencies
+            .iter()
+            .map(|d| d.into())
+            .collect::<Vec<index_data::RawIndexDependency<'static>>>(),
+    );
+
+    let version = index_data::Version {
+        name: InternedString::new("aws-test-crate"),
+        vers: Intern::new("0.0.0".parse().unwrap()),
+        yanked: false,
+        deps: deps_list,
+        features_raw: Intern::new(BTreeMap::new()),
+        features: Intern::new(BTreeMap::new()),
+        links: None,
+    };
+
+    // Convert to Summary and insert into data
+    if let Ok(summary) = cargo::core::Summary::try_from(&version) {
+        let mut version_map = std::collections::BTreeMap::new();
+        version_map.insert(
+            semver_pubgrub::SmallVersion::from((*version.vers).clone()),
+            (version, summary),
+        );
+        data.insert(InternedString::new("aws-test-crate"), version_map);
+    }
 
     let to_prosses: Vec<_> = data
         .par_iter()

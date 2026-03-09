@@ -11,26 +11,26 @@ fn is_default<D: Default + PartialEq>(t: &D) -> bool {
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Eq, PartialEq, Hash)]
 
-struct RawIndexDependency<'da> {
-    name: &'da str,
+pub struct RawIndexDependency<'da> {
+    pub name: &'da str,
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
-    package_name: &'da str,
+    pub package_name: &'da str,
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
-    req: semver::VersionReq,
+    pub req: semver::VersionReq,
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
-    features: Vec<&'da str>,
+    pub features: Vec<&'da str>,
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
-    default_features: bool,
+    pub default_features: bool,
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
-    kind: crates_index::DependencyKind,
+    pub kind: crates_index::DependencyKind,
     #[serde(skip_serializing_if = "is_default")]
     #[serde(default)]
-    optional: bool,
+    pub optional: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
